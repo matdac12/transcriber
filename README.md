@@ -128,7 +128,7 @@ Now the app will launch automatically at startup in the background!
 
 ### Change the Hotkey
 
-Edit `systray_dictation.py` line 24:
+Edit `systray_dictation.py` line 36:
 
 ```python
 self.hotkey = "alt gr"  # Change to your preferred hotkey
@@ -146,7 +146,7 @@ For more options, see: [keyboard library docs](https://github.com/boppreh/keyboa
 
 ### Change the Model
 
-Edit `systray_dictation.py` line 207:
+Edit `systray_dictation.py` line 281:
 
 ```python
 dictation = WhisperDictation(model_size="base")
@@ -198,7 +198,7 @@ View it anytime by right-clicking the systray icon → "View Log"
 ### ❌ Slow transcription
 - First run downloads the model (~141MB) - this is normal
 - **Install GPU support** for 10-20x speedup - see [GPU Support section](#4-gpu-support-optional---recommended-for-best-performance) for installation links
-- Use a smaller model (tiny or base) - edit line 231 in `systray_dictation.py`
+- Use a smaller model (tiny or base) - edit line 281 in `systray_dictation.py`
 - Check CTranslate2 logs on startup to see if GPU was detected
 - Close other memory-intensive applications
 - Ensure you have the latest version with all optimizations

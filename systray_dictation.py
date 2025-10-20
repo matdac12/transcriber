@@ -99,7 +99,7 @@ class WhisperDictation:
         # Find start and end of voice activity
         active_indices = np.where(active_frames)[0]
         start_frame = max(0, active_indices[0] - 2)  # Include 2 frames before
-        end_frame = min(len(active_frames), active_indices[-1] + 3)  # Include 2 frames after
+        end_frame = min(len(active_frames), active_indices[-1] + 3)  # Include 2 frames after (+3 for exclusive slice end)
 
         # Convert frame indices to sample indices
         start_sample = start_frame * frame_length

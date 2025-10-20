@@ -22,9 +22,11 @@ class WhisperDictation:
         print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
 
         try:
-            # Let CTranslate2/faster-whisper auto-detect the best device and compute type
-            # It will use CUDA GPU if available, otherwise fall back to CPU
-            self.model = WhisperModel(model_size)
+            device = "auto"
+            compute_type = "int8_float16"  # int8 on CPU, float16 on GPU
+            self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+            if self.debug:
+                print(f"[DEBUG] faster-whisper loaded (device={device}, compute_type={compute_type})")
             print("Model loaded successfully!")
         except Exception as e:
             print(f"Error loading model: {e}")
@@ -35,37 +37,42 @@ class WhisperDictation:
         self.audio_data = deque()  # Using deque for better performance
         self.hotkey = "alt gr"  # Alt Gr (Right Alt)
         self.debug = False
+        self.vad_threshold = 0.01  # Voice activity detection threshold (configurable)
         self.listening = False
         self.record_thread = None
         self.icon = None
 
         # Initialize toast notifier for Windows notifications
-        if TOAST_AVAILABLE:
+        if TOAST_AVAILABLE and os.name == "nt":
             self.toaster = ToastNotifier()
         else:
             self.toaster = None
 
-        # Log file setup
-        self.log_file = os.path.join(os.path.dirname(__file__), "dictation_log.txt")
+        # Log file setup - use AppData for user-writable location
+        log_dir = os.getenv("LOCALAPPDATA") or os.path.expanduser("~")
+        app_dir = os.path.join(log_dir, "WhisperDictation")
+        os.makedirs(app_dir, exist_ok=True)
+        self.log_file = os.path.join(app_dir, "dictation_log.txt")
 
     def show_notification(self, title, message):
         """Show notification using Windows toast or pystray fallback."""
         if self.toaster and TOAST_AVAILABLE:
             try:
                 self.toaster.show_toast(title, message, duration=3, threaded=True)
-                return
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 if self.debug:
-                    print(f"[DEBUG] Toast failed: {e}")
+                    print(f"[DEBUG] Toast failed: {e!r}")
+            else:
+                return
         # Fallback: pystray notification or console
         try:
             if self.icon:
                 self.icon.notify(message, title)
             else:
                 print(f"{title}: {message}")
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:
             if self.debug:
-                print(f"[DEBUG] Fallback notify failed: {e}")
+                print(f"[DEBUG] Fallback notify failed: {e!r}")
 
     def log_transcription(self, text, duration):
         """Save transcription to log file."""
@@ -81,8 +88,11 @@ class WhisperDictation:
         except Exception as e:
             print(f"Error writing to log: {e}")
 
-    def detect_voice_activity(self, audio_array, threshold=0.01):
+    def detect_voice_activity(self, audio_array, threshold=None):
         """Simple Voice Activity Detection to remove silence."""
+        if threshold is None:
+            threshold = getattr(self, "vad_threshold", 0.01)
+
         # Calculate energy in short frames
         frame_length = int(self.sample_rate * 0.02)  # 20ms frames
 
@@ -173,8 +183,8 @@ class WhisperDictation:
                 print(f"[DEBUG] ⚡ HOTKEY PRESSED! is_recording={self.is_recording}")
             if not self.is_recording:
                 # Start recording
+                self.audio_data.clear()  # Clear deque before setting flag to avoid race
                 self.is_recording = True
-                self.audio_data.clear()  # Clear deque efficiently
                 print("🎤 Recording...")
                 self.update_icon(recording=True)
                 self.show_notification("Recording", "🎤 Recording started...")
@@ -235,9 +245,9 @@ class WhisperDictation:
             print(f"[DEBUG] Audio array shape: {audio_array.shape}, min: {audio_array.min():.4f}, max: {audio_array.max():.4f}")
 
         # Apply Voice Activity Detection to remove silence
-        audio_array = self.detect_voice_activity(audio_array)
+        audio_array = self.detect_voice_activity(audio_array, threshold=self.vad_threshold)
 
-        if len(audio_array) < self.sample_rate * 0.1:  # Less than 0.1 seconds
+        if len(audio_array) < self.sample_rate * 0.2:  # Less than 0.2 seconds
             print("⚠️  Audio too short after VAD.")
             self.show_notification("No Speech", "⚠️ No speech was detected")
             return
@@ -251,7 +261,7 @@ class WhisperDictation:
             # faster-whisper API returns segments and info
             segments, info = self.model.transcribe(
                 audio_array,
-                beam_size=5,  # Lower beam size for faster processing
+                beam_size=2,  # Favor latency over quality for real-time dictation
                 language="en",  # Set language if known for faster processing
                 vad_filter=False  # We already applied VAD
             )

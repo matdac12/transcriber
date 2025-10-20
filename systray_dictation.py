@@ -20,22 +20,17 @@ except ImportError:
 class WhisperDictation:
     def __init__(self, model_size="base"):
         """Initialize the dictation system with a Whisper model."""
-        # Auto-detect GPU availability
-        try:
-            import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            compute_type = "float16" if device == "cuda" else "int8"
-            gpu_msg = "CUDA GPU" if device == "cuda" else "CPU"
-            print(f"Using {gpu_msg} for inference")
-        except ImportError:
-            device = "cpu"
-            compute_type = "int8"
-            print("Using CPU for inference (install torch for GPU support)")
+        print(f"Loading faster-whisper {model_size} model...")
+        print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
 
-        print(f"Loading faster-whisper {model_size} model on {device}...")
-        # faster-whisper uses CTranslate2 for much faster inference
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        print("Model loaded successfully!")
+        try:
+            # Let CTranslate2/faster-whisper auto-detect the best device and compute type
+            # It will use CUDA GPU if available, otherwise fall back to CPU
+            self.model = WhisperModel(model_size)
+            print("Model loaded successfully!")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise
 
         self.sample_rate = 16000
         self.is_recording = False
@@ -45,7 +40,6 @@ class WhisperDictation:
         self.listening = False
         self.record_thread = None
         self.icon = None
-        self.device = device
 
         # Initialize toast notifier for Windows notifications
         if TOAST_AVAILABLE:

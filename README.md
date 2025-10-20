@@ -54,15 +54,16 @@ pip install -r requirements.txt
 
 The first time you run the app, Whisper will download the base model (~141MB) automatically.
 
-### 4. GPU Support (Recommended for Best Performance)
+### 4. GPU Support (Optional - Recommended for Best Performance)
 
-For **10-20x faster** transcription with NVIDIA GPU:
+For **10-20x faster** transcription with NVIDIA GPU, you'll need CTranslate2 with CUDA support.
 
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-```
+**Installation:**
+- See the [faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper#gpu) for current GPU installation instructions
+- See the [CTranslate2 installation guide](https://opennmt.net/CTranslate2/installation.html) for CUDA requirements and compatible versions
+- NVIDIA CUDA Toolkit is required - download from [NVIDIA's website](https://developer.nvidia.com/cuda-downloads)
 
-The app will automatically detect and use your GPU if available. CPU-only mode still works great with the optimizations!
+CTranslate2 will automatically detect and use your GPU if CUDA is properly installed. CPU-only mode still works great with the optimizations!
 
 **Note:** The model will download automatically on first launch (~141MB for base model)
 
@@ -194,9 +195,9 @@ View it anytime by right-clicking the systray icon → "View Log"
 
 ### ❌ Slow transcription
 - First run downloads the model (~141MB) - this is normal
-- **Install GPU support** for 10-20x speedup: `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
+- **Install GPU support** for 10-20x speedup - see [GPU Support section](#4-gpu-support-optional---recommended-for-best-performance) for installation links
 - Use a smaller model (tiny or base) - edit line 231 in `systray_dictation.py`
-- Check if GPU is being used - look for "Using CUDA GPU" message on startup
+- Check CTranslate2 logs on startup to see if GPU was detected
 - Close other memory-intensive applications
 - Ensure you have the latest version with all optimizations
 
@@ -247,7 +248,7 @@ This app includes several optimizations for Windows:
 
 ### Performance Tips
 
-- **Install torch with CUDA** - Get massive speedup on NVIDIA GPUs
+- **Install CUDA support** - Get massive speedup on NVIDIA GPUs (see GPU Support section above)
 - **Use 'tiny' or 'base' model** - Best balance of speed and accuracy for most use cases
 - **First launch is slower** - Model downloads and initializes (~141MB)
 - **Subsequent launches are instant** - Model is cached locally

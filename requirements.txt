@@ -1,4 +1,4 @@
-faster-whisper
+faster-whisper>=1.0.0,<2.0.0
 sounddevice
 numpy
 pyperclip
@@ -6,4 +6,4 @@ keyboard
 pystray
 pillow
 win10toast
-torch
+

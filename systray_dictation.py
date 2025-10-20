@@ -14,8 +14,6 @@ try:
     TOAST_AVAILABLE = True
 except ImportError:
     TOAST_AVAILABLE = False
-    import tkinter as tk
-    from tkinter import messagebox
 
 class WhisperDictation:
     def __init__(self, model_size="base"):
@@ -51,61 +49,23 @@ class WhisperDictation:
         self.log_file = os.path.join(os.path.dirname(__file__), "dictation_log.txt")
 
     def show_notification(self, title, message):
-        """Show a popup notification using Windows toast or fallback to tkinter."""
-        def show_toast():
-            if self.toaster and TOAST_AVAILABLE:
-                # Use Windows 10/11 native toast notifications (much faster)
-                try:
-                    self.toaster.show_toast(
-                        title,
-                        message,
-                        duration=3,
-                        threaded=True
-                    )
-                except Exception as e:
-                    if self.debug:
-                        print(f"[DEBUG] Toast notification failed: {e}")
-                    # Fallback to tkinter
-                    self._show_tkinter_notification(title, message)
+        """Show notification using Windows toast or pystray fallback."""
+        if self.toaster and TOAST_AVAILABLE:
+            try:
+                self.toaster.show_toast(title, message, duration=3, threaded=True)
+                return
+            except Exception as e:
+                if self.debug:
+                    print(f"[DEBUG] Toast failed: {e}")
+        # Fallback: pystray notification or console
+        try:
+            if self.icon:
+                self.icon.notify(message, title)
             else:
-                # Fallback to tkinter notifications
-                self._show_tkinter_notification(title, message)
-
-        # Run in a separate thread so it doesn't block
-        threading.Thread(target=show_toast, daemon=True).start()
-
-    def _show_tkinter_notification(self, title, message):
-        """Fallback notification using tkinter."""
-        root = tk.Tk()
-        root.withdraw()  # Hide the main window
-
-        # Create a custom popup window
-        popup = tk.Toplevel(root)
-        popup.title(title)
-        width = 350
-        height = 100
-        popup.geometry(f"{width}x{height}")
-        popup.attributes('-topmost', True)  # Always on top
-
-        # Get screen dimensions
-        screen_width = popup.winfo_screenwidth()
-        screen_height = popup.winfo_screenheight()
-
-        # Position in bottom right corner with small margin (20px from edges)
-        x = screen_width - width - 20
-        y = screen_height - height - 60
-
-        popup.geometry(f"{width}x{height}+{x}+{y}")
-
-        # Add message label
-        label = tk.Label(popup, text=message, wraplength=330, justify="center", font=("Arial", 10))
-        label.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Auto-close after 3 seconds (3000 ms)
-        popup.after(3000, popup.destroy)
-        popup.after(3000, root.destroy)
-
-        root.mainloop()
+                print(f"{title}: {message}")
+        except Exception as e:
+            if self.debug:
+                print(f"[DEBUG] Fallback notify failed: {e}")
 
     def log_transcription(self, text, duration):
         """Save transcription to log file."""
@@ -278,7 +238,7 @@ class WhisperDictation:
         try:
             # Transcribe with faster-whisper
             if self.debug:
-                print(f"[DEBUG] Starting transcription with faster-whisper...")
+                print("[DEBUG] Starting transcription with faster-whisper...")
                 print(f"[DEBUG] Audio duration: {len(audio_array) / self.sample_rate:.2f} seconds")
 
             # faster-whisper API returns segments and info

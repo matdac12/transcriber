@@ -56,12 +56,13 @@ The first time you run the app, Whisper will download the base model (~141MB) au
 
 ### 4. GPU Support (Optional - Recommended for Best Performance)
 
-For **10-20x faster** transcription with NVIDIA GPU, you'll need CTranslate2 with CUDA support.
+For **10-20x faster** transcription with NVIDIA GPU, you'll need CUDA 12.x and cuDNN 9 installed, plus CTranslate2 with GPU support.
 
 **Installation:**
+- **System requirements:** NVIDIA GPU driver + CUDA 12.x + cuDNN 9 (download from NVIDIA website)
 - See the [faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper#gpu) for current GPU installation instructions
 - See the [CTranslate2 installation guide](https://opennmt.net/CTranslate2/installation.html) for CUDA requirements and compatible versions
-- NVIDIA CUDA Toolkit is required - download from [NVIDIA's website](https://developer.nvidia.com/cuda-downloads)
+- [NVIDIA CUDA Toolkit download](https://developer.nvidia.com/cuda-downloads)
 
 CTranslate2 will automatically detect and use your GPU if CUDA is properly installed. CPU-only mode still works great with the optimizations!
 
@@ -152,6 +153,7 @@ dictation = WhisperDictation(model_size="base")
 ```
 
 **Available models:**
+
 | Model  | Speed    | Accuracy | VRAM | CPU Latency* | GPU Latency* |
 |--------|----------|----------|------|-------------|-------------|
 | tiny   | ⚡⚡⚡⚡   | ⭐       | ~1GB | ~0.3s       | ~0.1s       |

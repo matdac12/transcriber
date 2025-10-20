@@ -1,4 +1,4 @@
-import whisper
+from faster_whisper import WhisperModel
 import sounddevice as sd
 import numpy as np
 import pyperclip
@@ -8,70 +8,115 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image, ImageDraw
 from datetime import datetime
 import os
-import tkinter as tk
-from tkinter import messagebox
+from collections import deque
+try:
+    from win10toast import ToastNotifier
+    TOAST_AVAILABLE = True
+except ImportError:
+    TOAST_AVAILABLE = False
+    import tkinter as tk
+    from tkinter import messagebox
 
 class WhisperDictation:
     def __init__(self, model_size="base"):
         """Initialize the dictation system with a Whisper model."""
-        print(f"Loading Whisper {model_size} model...")
-        self.model = whisper.load_model(model_size)
+        # Auto-detect GPU availability
+        try:
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            compute_type = "float16" if device == "cuda" else "int8"
+            gpu_msg = "CUDA GPU" if device == "cuda" else "CPU"
+            print(f"Using {gpu_msg} for inference")
+        except ImportError:
+            device = "cpu"
+            compute_type = "int8"
+            print("Using CPU for inference (install torch for GPU support)")
+
+        print(f"Loading faster-whisper {model_size} model on {device}...")
+        # faster-whisper uses CTranslate2 for much faster inference
+        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
         print("Model loaded successfully!")
 
         self.sample_rate = 16000
         self.is_recording = False
-        self.audio_data = []
+        self.audio_data = deque()  # Using deque for better performance
         self.hotkey = "alt gr"  # Alt Gr (Right Alt)
         self.debug = False
         self.listening = False
         self.record_thread = None
         self.icon = None
+        self.device = device
+
+        # Initialize toast notifier for Windows notifications
+        if TOAST_AVAILABLE:
+            self.toaster = ToastNotifier()
+        else:
+            self.toaster = None
 
         # Log file setup
         self.log_file = os.path.join(os.path.dirname(__file__), "dictation_log.txt")
 
     def show_notification(self, title, message):
-        """Show a popup notification window in bottom right corner."""
-        def show_popup():
-            root = tk.Tk()
-            root.withdraw()  # Hide the main window
-
-            # Create a custom popup window
-            popup = tk.Toplevel(root)
-            popup.title(title)
-            width = 350
-            height = 100
-            popup.geometry(f"{width}x{height}")
-            popup.attributes('-topmost', True)  # Always on top
-
-            # Get screen dimensions
-            screen_width = popup.winfo_screenwidth()
-            screen_height = popup.winfo_screenheight()
-
-            # Position in bottom right corner with small margin (20px from edges)
-            x = screen_width - width - 20
-            y = screen_height - height - 60
-
-            popup.geometry(f"{width}x{height}+{x}+{y}")
-
-            # Add message label
-            label = tk.Label(popup, text=message, wraplength=330, justify="center", font=("Arial", 10))
-            label.pack(expand=True, fill="both", padx=10, pady=10)
-
-            # Auto-close after 3 seconds (3000 ms)
-            popup.after(3000, popup.destroy)
-            popup.after(3000, root.destroy)
-
-            root.mainloop()
+        """Show a popup notification using Windows toast or fallback to tkinter."""
+        def show_toast():
+            if self.toaster and TOAST_AVAILABLE:
+                # Use Windows 10/11 native toast notifications (much faster)
+                try:
+                    self.toaster.show_toast(
+                        title,
+                        message,
+                        duration=3,
+                        threaded=True
+                    )
+                except Exception as e:
+                    if self.debug:
+                        print(f"[DEBUG] Toast notification failed: {e}")
+                    # Fallback to tkinter
+                    self._show_tkinter_notification(title, message)
+            else:
+                # Fallback to tkinter notifications
+                self._show_tkinter_notification(title, message)
 
         # Run in a separate thread so it doesn't block
-        threading.Thread(target=show_popup, daemon=True).start()
+        threading.Thread(target=show_toast, daemon=True).start()
 
-    def log_transcription(self, text):
+    def _show_tkinter_notification(self, title, message):
+        """Fallback notification using tkinter."""
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+
+        # Create a custom popup window
+        popup = tk.Toplevel(root)
+        popup.title(title)
+        width = 350
+        height = 100
+        popup.geometry(f"{width}x{height}")
+        popup.attributes('-topmost', True)  # Always on top
+
+        # Get screen dimensions
+        screen_width = popup.winfo_screenwidth()
+        screen_height = popup.winfo_screenheight()
+
+        # Position in bottom right corner with small margin (20px from edges)
+        x = screen_width - width - 20
+        y = screen_height - height - 60
+
+        popup.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Add message label
+        label = tk.Label(popup, text=message, wraplength=330, justify="center", font=("Arial", 10))
+        label.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # Auto-close after 3 seconds (3000 ms)
+        popup.after(3000, popup.destroy)
+        popup.after(3000, root.destroy)
+
+        root.mainloop()
+
+    def log_transcription(self, text, duration):
         """Save transcription to log file."""
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            duration = len(self.audio_data) * len(self.audio_data[0]) / self.sample_rate if self.audio_data else 0
             log_entry = f"[{timestamp}] ({duration:.2f}s) {text}\n"
 
             with open(self.log_file, "a", encoding="utf-8") as f:
@@ -81,6 +126,39 @@ class WhisperDictation:
                 print(f"[DEBUG] Logged: {log_entry.strip()}")
         except Exception as e:
             print(f"Error writing to log: {e}")
+
+    def detect_voice_activity(self, audio_array, threshold=0.01):
+        """Simple Voice Activity Detection to remove silence."""
+        # Calculate energy in short frames
+        frame_length = int(self.sample_rate * 0.02)  # 20ms frames
+        energy = np.array([
+            np.sqrt(np.mean(audio_array[i:i+frame_length]**2))
+            for i in range(0, len(audio_array) - frame_length, frame_length)
+        ])
+
+        # Find frames with energy above threshold
+        active_frames = energy > threshold
+
+        if not np.any(active_frames):
+            return audio_array  # No voice detected, return original
+
+        # Find start and end of voice activity
+        active_indices = np.where(active_frames)[0]
+        start_frame = max(0, active_indices[0] - 2)  # Include 2 frames before
+        end_frame = min(len(active_frames), active_indices[-1] + 3)  # Include 2 frames after
+
+        # Convert frame indices to sample indices
+        start_sample = start_frame * frame_length
+        end_sample = min(len(audio_array), end_frame * frame_length)
+
+        trimmed = audio_array[start_sample:end_sample]
+
+        if self.debug:
+            original_duration = len(audio_array) / self.sample_rate
+            trimmed_duration = len(trimmed) / self.sample_rate
+            print(f"[DEBUG] VAD: {original_duration:.2f}s -> {trimmed_duration:.2f}s")
+
+        return trimmed
 
     def update_icon(self, recording=False):
         """Update the systray icon color based on recording state."""
@@ -135,7 +213,7 @@ class WhisperDictation:
             if not self.is_recording:
                 # Start recording
                 self.is_recording = True
-                self.audio_data = []
+                self.audio_data.clear()  # Clear deque efficiently
                 print("🎤 Recording...")
                 self.update_icon(recording=True)
                 self.show_notification("Recording", "🎤 Recording started...")
@@ -190,27 +268,45 @@ class WhisperDictation:
         if self.debug:
             print(f"[DEBUG] Combining {len(self.audio_data)} audio chunks...")
 
-        # Combine audio chunks
-        audio_array = np.concatenate(self.audio_data, axis=0).flatten()
+        # Combine audio chunks from deque
+        audio_array = np.concatenate(list(self.audio_data), axis=0).flatten()
         if self.debug:
             print(f"[DEBUG] Audio array shape: {audio_array.shape}, min: {audio_array.min():.4f}, max: {audio_array.max():.4f}")
 
+        # Apply Voice Activity Detection to remove silence
+        audio_array = self.detect_voice_activity(audio_array)
+
+        if len(audio_array) < self.sample_rate * 0.1:  # Less than 0.1 seconds
+            print("⚠️  Audio too short after VAD.")
+            self.show_notification("No Speech", "⚠️ No speech was detected")
+            return
+
         try:
-            # Transcribe with Whisper
+            # Transcribe with faster-whisper
             if self.debug:
-                print(f"[DEBUG] Starting transcription with Whisper...")
+                print(f"[DEBUG] Starting transcription with faster-whisper...")
                 print(f"[DEBUG] Audio duration: {len(audio_array) / self.sample_rate:.2f} seconds")
 
-            result = self.model.transcribe(audio_array, fp16=False)
-            text = result["text"].strip()
+            # faster-whisper API returns segments and info
+            segments, info = self.model.transcribe(
+                audio_array,
+                beam_size=5,  # Lower beam size for faster processing
+                language="en",  # Set language if known for faster processing
+                vad_filter=False  # We already applied VAD
+            )
+
+            # Collect all text from segments
+            text = " ".join([segment.text for segment in segments]).strip()
+            duration = len(audio_array) / self.sample_rate
 
             if self.debug:
                 print(f"[DEBUG] Transcription complete. Result: '{text}'")
+                print(f"[DEBUG] Detected language: {info.language} (probability: {info.language_probability:.2f})")
 
             if text:
                 print(f"✓ Transcribed: {text}")
                 pyperclip.copy(text)
-                self.log_transcription(text)
+                self.log_transcription(text, duration)
                 self.show_notification("Transcribed", text)
                 print("📋 Copied to clipboard!")
             else:

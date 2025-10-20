@@ -85,10 +85,17 @@ class WhisperDictation:
         """Simple Voice Activity Detection to remove silence."""
         # Calculate energy in short frames
         frame_length = int(self.sample_rate * 0.02)  # 20ms frames
-        energy = np.array([
-            np.sqrt(np.mean(audio_array[i:i+frame_length]**2))
-            for i in range(0, len(audio_array) - frame_length, frame_length)
-        ])
+
+        # Handle case where audio is shorter than one frame
+        if len(audio_array) < frame_length:
+            # Treat entire buffer as one frame
+            energy = np.array([np.sqrt(np.mean(audio_array**2))])
+        else:
+            # Process full frames, including the last complete frame
+            energy = np.array([
+                np.sqrt(np.mean(audio_array[i:i+frame_length]**2))
+                for i in range(0, len(audio_array) - frame_length + 1, frame_length)
+            ])
 
         # Find frames with energy above threshold
         active_frames = energy > threshold

@@ -5,5 +5,3 @@ pyperclip
 keyboard
 pystray
 pillow
-win10toast>=0.9,<1.0
-

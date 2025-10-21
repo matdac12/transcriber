@@ -8,30 +8,25 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image, ImageDraw
 from datetime import datetime
 import os
+import sys
+import warnings
 from collections import deque
-try:
-    from win10toast import ToastNotifier
-    TOAST_AVAILABLE = True
-except ImportError:
-    TOAST_AVAILABLE = False
+
+# Suppress pystray Windows warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+if sys.platform == "win32":
+    import ctypes
+
+    # Suppress ctypes errors from pystray
+    ctypes.pythonapi.PyErr_WriteUnraisable.argtypes = [ctypes.py_object]
+
+# Toast notifications removed - using icon color feedback instead
+
 
 class WhisperDictation:
     def __init__(self, model_size="base"):
         """Initialize the dictation system with a Whisper model."""
-        print(f"Loading faster-whisper {model_size} model...")
-        print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
-
-        try:
-            device = "auto"
-            compute_type = "int8_float16"  # int8 on CPU, float16 on GPU
-            self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-            if self.debug:
-                print(f"[DEBUG] faster-whisper loaded (device={device}, compute_type={compute_type})")
-            print("Model loaded successfully!")
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            raise
-
+        # Initialize basic attributes first
         self.sample_rate = 16000
         self.is_recording = False
         self.audio_data = deque()  # Using deque for better performance
@@ -42,37 +37,29 @@ class WhisperDictation:
         self.record_thread = None
         self.icon = None
 
-        # Initialize toast notifier for Windows notifications
-        if TOAST_AVAILABLE and os.name == "nt":
-            self.toaster = ToastNotifier()
-        else:
-            self.toaster = None
+        print(f"Loading faster-whisper {model_size} model...")
+        print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
+
+        try:
+            device = "auto"
+            compute_type = "int8"  # int8 for CPU compatibility
+            self.model = WhisperModel(
+                model_size, device=device, compute_type=compute_type
+            )
+            if self.debug:
+                print(
+                    f"[DEBUG] faster-whisper loaded (device={device}, compute_type={compute_type})"
+                )
+            print("Model loaded successfully!")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise
 
         # Log file setup - use AppData for user-writable location
         log_dir = os.getenv("LOCALAPPDATA") or os.path.expanduser("~")
         app_dir = os.path.join(log_dir, "WhisperDictation")
         os.makedirs(app_dir, exist_ok=True)
         self.log_file = os.path.join(app_dir, "dictation_log.txt")
-
-    def show_notification(self, title, message):
-        """Show notification using Windows toast or pystray fallback."""
-        if self.toaster and TOAST_AVAILABLE:
-            try:
-                self.toaster.show_toast(title, message, duration=3, threaded=True)
-            except (OSError, RuntimeError) as e:
-                if self.debug:
-                    print(f"[DEBUG] Toast failed: {e!r}")
-            else:
-                return
-        # Fallback: pystray notification or console
-        try:
-            if self.icon:
-                self.icon.notify(message, title)
-            else:
-                print(f"{title}: {message}")
-        except (RuntimeError, ValueError, OSError) as e:
-            if self.debug:
-                print(f"[DEBUG] Fallback notify failed: {e!r}")
 
     def log_transcription(self, text, duration):
         """Save transcription to log file."""
@@ -102,10 +89,12 @@ class WhisperDictation:
             energy = np.array([np.sqrt(np.mean(audio_array**2))])
         else:
             # Process full frames, including the last complete frame
-            energy = np.array([
-                np.sqrt(np.mean(audio_array[i:i+frame_length]**2))
-                for i in range(0, len(audio_array) - frame_length + 1, frame_length)
-            ])
+            energy = np.array(
+                [
+                    np.sqrt(np.mean(audio_array[i : i + frame_length] ** 2))
+                    for i in range(0, len(audio_array) - frame_length + 1, frame_length)
+                ]
+            )
 
         # Find frames with energy above threshold
         active_frames = energy > threshold
@@ -116,7 +105,9 @@ class WhisperDictation:
         # Find start and end of voice activity
         active_indices = np.where(active_frames)[0]
         start_frame = max(0, active_indices[0] - 2)  # Include 2 frames before
-        end_frame = min(len(active_frames), active_indices[-1] + 3)  # Include 2 frames after (+3 for exclusive slice end)
+        end_frame = min(
+            len(active_frames), active_indices[-1] + 3
+        )  # Include 2 frames after (+3 for exclusive slice end)
 
         # Convert frame indices to sample indices
         start_sample = start_frame * frame_length
@@ -131,27 +122,32 @@ class WhisperDictation:
 
         return trimmed
 
-    def update_icon(self, recording=False):
-        """Update the systray icon color based on recording state."""
+    def update_icon(self, state="idle"):
+        """Update the systray icon color based on state.
+
+        Args:
+            state: 'idle' (blue), 'recording' (red), or 'done' (green)
+        """
         if not self.icon:
             return
 
-        if recording:
-            # Red icon for recording
-            image = self.create_icon(color='red')
-        else:
-            # Blue icon for listening
-            image = self.create_icon(color='blue')
+        color_map = {
+            "idle": "blue",  # Ready to record
+            "recording": "red",  # Currently recording
+            "done": "green",  # Transcription complete
+        }
 
+        color = color_map.get(state, "blue")
+        image = self.create_icon(color=color)
         self.icon.icon = image
 
-    def create_icon(self, color='blue'):
+    def create_icon(self, color="blue"):
         """Create a colored icon for the system tray."""
-        image = Image.new('RGB', (64, 64), color=color)
+        image = Image.new("RGB", (64, 64), color=color)
         draw = ImageDraw.Draw(image)
         # Draw a microphone-like symbol
-        draw.rectangle([16, 8, 48, 40], outline='white', width=2)
-        draw.rectangle([20, 40, 44, 56], outline='white', width=2)
+        draw.rectangle([16, 8, 48, 40], outline="white", width=2)
+        draw.rectangle([20, 40, 44, 56], outline="white", width=2)
         return image
 
     def start_listening(self):
@@ -163,7 +159,6 @@ class WhisperDictation:
         self.record_thread = threading.Thread(target=self._record_loop, daemon=True)
         self.record_thread.start()
         print("🎤 Listening started")
-        self.show_notification("Whisper Dictation", "🎤 Listening activated!")
 
     def stop_listening(self):
         """Stop the recording listener."""
@@ -171,8 +166,7 @@ class WhisperDictation:
         if self.record_thread:
             self.record_thread.join(timeout=2)
         print("⏹️  Listening stopped")
-        self.update_icon(recording=False)
-        self.show_notification("Whisper Dictation", "⏹️ Listening deactivated")
+        self.update_icon(state="idle")
 
     def _record_loop(self):
         """Main recording loop running in background thread."""
@@ -186,16 +180,14 @@ class WhisperDictation:
                 self.audio_data.clear()  # Clear deque before setting flag to avoid race
                 self.is_recording = True
                 print("🎤 Recording...")
-                self.update_icon(recording=True)
-                self.show_notification("Recording", "🎤 Recording started...")
+                self.update_icon(state="recording")
                 if self.debug:
                     print(f"[DEBUG] Started capturing audio")
             else:
                 # Stop recording
                 self.is_recording = False
-                self.update_icon(recording=False)
+                self.update_icon(state="idle")  # Back to blue while processing
                 print("⏹️  Processing...")
-                self.show_notification("Processing", "⏹️ Processing your audio...")
                 if self.debug:
                     print(f"[DEBUG] Recorded {len(self.audio_data)} audio chunks")
                 self.transcribe_and_paste()
@@ -213,10 +205,12 @@ class WhisperDictation:
                 self.audio_data.append(indata.copy())
 
         try:
-            with sd.InputStream(callback=audio_callback,
-                               channels=1,
-                               samplerate=self.sample_rate,
-                               dtype=np.float32):
+            with sd.InputStream(
+                callback=audio_callback,
+                channels=1,
+                samplerate=self.sample_rate,
+                dtype=np.float32,
+            ):
                 # Keep the stream running while listening is active
                 while self.listening:
                     threading.Event().wait(0.1)
@@ -233,7 +227,6 @@ class WhisperDictation:
         """Transcribe recorded audio and paste to clipboard."""
         if not self.audio_data:
             print("❌ No audio recorded.")
-            self.show_notification("Error", "❌ No audio was recorded")
             return
 
         if self.debug:
@@ -242,28 +235,33 @@ class WhisperDictation:
         # Combine audio chunks from deque
         audio_array = np.concatenate(list(self.audio_data), axis=0).flatten()
         if self.debug:
-            print(f"[DEBUG] Audio array shape: {audio_array.shape}, min: {audio_array.min():.4f}, max: {audio_array.max():.4f}")
+            print(
+                f"[DEBUG] Audio array shape: {audio_array.shape}, min: {audio_array.min():.4f}, max: {audio_array.max():.4f}"
+            )
 
         # Apply Voice Activity Detection to remove silence
-        audio_array = self.detect_voice_activity(audio_array, threshold=self.vad_threshold)
+        audio_array = self.detect_voice_activity(
+            audio_array, threshold=self.vad_threshold
+        )
 
         if len(audio_array) < self.sample_rate * 0.2:  # Less than 0.2 seconds
             print("⚠️  Audio too short after VAD.")
-            self.show_notification("No Speech", "⚠️ No speech was detected")
             return
 
         try:
             # Transcribe with faster-whisper
             if self.debug:
                 print("[DEBUG] Starting transcription with faster-whisper...")
-                print(f"[DEBUG] Audio duration: {len(audio_array) / self.sample_rate:.2f} seconds")
+                print(
+                    f"[DEBUG] Audio duration: {len(audio_array) / self.sample_rate:.2f} seconds"
+                )
 
             # faster-whisper API returns segments and info
             segments, info = self.model.transcribe(
                 audio_array,
                 beam_size=2,  # Favor latency over quality for real-time dictation
                 language="en",  # Set language if known for faster processing
-                vad_filter=False  # We already applied VAD
+                vad_filter=False,  # We already applied VAD
             )
 
             # Collect all text from segments
@@ -272,28 +270,54 @@ class WhisperDictation:
 
             if self.debug:
                 print(f"[DEBUG] Transcription complete. Result: '{text}'")
-                print(f"[DEBUG] Detected language: {info.language} (probability: {info.language_probability:.2f})")
+                print(
+                    f"[DEBUG] Detected language: {info.language} (probability: {info.language_probability:.2f})"
+                )
 
             if text:
                 print(f"✓ Transcribed: {text}")
                 pyperclip.copy(text)
                 self.log_transcription(text, duration)
-                self.show_notification("Transcribed", text)
+
+                # Turn icon GREEN to show completion
+                self.update_icon(state="done")
                 print("📋 Copied to clipboard!")
+
+                # Return to blue (idle) after 2 seconds
+                threading.Timer(2.0, lambda: self.update_icon(state="idle")).start()
             else:
                 print("⚠️  No speech detected in audio.")
-                self.show_notification("No Speech", "⚠️ No speech was detected")
+                self.update_icon(state="idle")
 
         except Exception as e:
             print(f"❌ Error during transcription: {e}")
-            self.show_notification("Error", f"❌ Transcription error: {str(e)[:50]}")
             if self.debug:
                 import traceback
+
                 traceback.print_exc()
 
 
 def main():
     print("=== Whisper Dictation Systray ===\n")
+
+    # Suppress pystray WNDPROC error messages (they're harmless cosmetic issues)
+    if sys.platform == "win32":
+        import io
+
+        # Create a custom stderr that filters out specific pystray errors
+        class FilteredStderr:
+            def __init__(self, original):
+                self.original = original
+
+            def write(self, text):
+                # Only suppress specific pystray WNDPROC errors
+                if "WNDPROC" not in text and "WPARAM" not in text:
+                    self.original.write(text)
+
+            def flush(self):
+                self.original.flush()
+
+        sys.stderr = FilteredStderr(sys.stderr)
 
     dictation = WhisperDictation(model_size="base")
 
@@ -310,19 +334,18 @@ def main():
         if os.path.exists(dictation.log_file):
             os.startfile(dictation.log_file)
         else:
-            dictation.show_notification("No Log", "No transcriptions yet")
+            print("⚠️  No transcriptions yet")
 
     def on_clear_log(icon, item):
         """Clear the log file."""
         try:
             if os.path.exists(dictation.log_file):
                 os.remove(dictation.log_file)
-                dictation.show_notification("Log Cleared", "✓ Log file cleared")
                 print("✓ Log cleared")
             else:
-                dictation.show_notification("No Log", "No log file to clear")
+                print("⚠️  No log file to clear")
         except Exception as e:
-            dictation.show_notification("Error", f"Could not clear log: {str(e)[:30]}")
+            print(f"❌ Could not clear log: {e}")
 
     def on_exit(icon, item):
         dictation.stop_listening()
@@ -341,7 +364,7 @@ def main():
     )
 
     # Create and run the icon
-    icon = Icon("Whisper Dictation", dictation.create_icon(color='blue'), menu=menu)
+    icon = Icon("Whisper Dictation", dictation.create_icon(color="blue"), menu=menu)
     dictation.icon = icon
 
     print("\n✓ Systray app started!")

@@ -13,8 +13,7 @@ Perfect for:
 ✨ **Core Features:**
 - 🎤 **Global hotkey recording** - Press Alt Gr to start/stop recording from anywhere
 - 📋 **Auto-copy to clipboard** - Transcribed text automatically copied, ready to paste
-- 🔴 **Visual feedback** - Systray icon changes color: Blue (listening) → Red (recording)
-- 📢 **Native Windows notifications** - Fast toast notifications in Windows 10/11
+- 🎨 **Color-coded visual feedback** - Systray icon shows status: 🔵 Blue (ready) → 🔴 Red (recording) → 🟢 Green (done!)
 - 📝 **Persistent logging** - All transcriptions saved with timestamp and duration
 - 🔧 **No internet required** - Everything runs locally on your machine
 - 🎯 **Minimal interference** - Runs silently in system tray, no terminal window
@@ -84,11 +83,22 @@ This launches the app silently with no terminal window - just the systray icon.
 
 1. **Launch the app** (see Quick Start above)
 2. **Right-click the blue systray icon** → "Start Listening"
-3. **Press Alt Gr** to start recording
+3. **Press Alt Gr** to start recording (icon turns 🔴 RED)
 4. **Speak naturally**
 5. **Press Alt Gr again** to stop and transcribe
-6. **Text appears in a notification** and is copied to clipboard
+6. **Icon turns 🟢 GREEN** when transcription is complete and text is copied to clipboard
 7. **Paste anywhere** with Ctrl+V
+
+### Visual Feedback System
+
+**Pin the systray icon to your taskbar** (drag to bottom-right corner) for easy visibility:
+
+- 🔵 **BLUE** = Ready to record (listening for Alt Gr)
+- 🔴 **RED** = Recording in progress
+- 🟢 **GREEN** = Transcription complete! (text copied to clipboard)
+  - Automatically returns to blue after 2 seconds
+
+No pop-up notifications needed - just watch the icon color!
 
 ### Systray Menu Options
 
@@ -178,11 +188,6 @@ View it anytime by right-clicking the systray icon → "View Log"
 
 ## Troubleshooting
 
-### ❌ Notifications don't appear
-- Ensure you're running the app as Administrator
-- Check Windows notification settings
-- Try restarting the app
-
 ### ❌ Microphone not being detected
 - Check Windows Sound Settings (right-click speaker icon → Sound settings)
 - Ensure your microphone is set as the default recording device
@@ -231,9 +236,9 @@ whisper-dictation/
 
 ## How It Works
 
-1. **Recording** - Captures audio from your microphone in real-time
+1. **Recording** - Captures audio from your microphone in real-time (🔴 red icon)
 2. **Processing** - Whisper model converts audio to text (runs locally)
-3. **Output** - Text is copied to clipboard and shown in notification
+3. **Output** - Text is copied to clipboard, icon turns 🟢 green
 4. **Logging** - Everything is saved with timestamp and duration
 
 No data is ever sent to external servers - it's 100% local processing!
@@ -245,7 +250,7 @@ This app includes several optimizations for Windows:
 1. **faster-whisper** - Uses CTranslate2 for 4-8x faster CPU inference
 2. **Auto GPU detection** - Automatically uses NVIDIA GPU if available (10-20x speedup)
 3. **Voice Activity Detection (VAD)** - Removes silence before/after speech for faster processing
-4. **Windows native notifications** - Uses toast notifications instead of tkinter popups
+4. **Color-coded visual feedback** - No popup notifications to distract you
 5. **Optimized audio buffering** - Uses deque for efficient memory management
 
 ### Performance Tips

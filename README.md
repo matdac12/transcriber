@@ -12,7 +12,8 @@ Perfect for:
 
 ✨ **Core Features:**
 - 🎤 **Global hotkey recording** - Press Alt Gr to start/stop recording from anywhere
-- 📋 **Auto-copy to clipboard** - Transcribed text automatically copied, ready to paste
+- ✨ **Auto-paste** - Transcribed text automatically pastes at your cursor position
+- 📋 **Clipboard integration** - Text also copied to clipboard for manual pasting
 - 🎨 **Color-coded visual feedback** - Systray icon shows status: 🔵 Blue (ready) → 🔴 Red (recording) → 🟢 Green (done!)
 - 📝 **Persistent logging** - All transcriptions saved with timestamp and duration
 - 🔧 **No internet required** - Everything runs locally on your machine
@@ -83,11 +84,13 @@ This launches the app silently with no terminal window - just the systray icon.
 
 1. **Launch the app** (see Quick Start above)
 2. **Right-click the blue systray icon** → "Start Listening"
-3. **Press Alt Gr** to start recording (icon turns 🔴 RED)
-4. **Speak naturally**
-5. **Press Alt Gr again** to stop and transcribe
-6. **Icon turns 🟢 GREEN** when transcription is complete and text is copied to clipboard
-7. **Paste anywhere** with Ctrl+V
+3. **Click where you want the text to appear** (Word, email, notepad, etc.)
+4. **Press Alt Gr** to start recording (icon turns 🔴 RED)
+5. **Speak naturally**
+6. **Press Alt Gr again** to stop and transcribe
+7. **Icon turns 🟢 GREEN** and text **automatically pastes** at your cursor!
+
+**That's it!** No need to manually paste - your words appear instantly wherever your cursor is positioned.
 
 ### Visual Feedback System
 
@@ -238,7 +241,7 @@ whisper-dictation/
 
 1. **Recording** - Captures audio from your microphone in real-time (🔴 red icon)
 2. **Processing** - Whisper model converts audio to text (runs locally)
-3. **Output** - Text is copied to clipboard, icon turns 🟢 green
+3. **Output** - Text auto-pastes at cursor position, icon turns 🟢 green
 4. **Logging** - Everything is saved with timestamp and duration
 
 No data is ever sent to external servers - it's 100% local processing!

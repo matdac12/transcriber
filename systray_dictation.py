@@ -283,6 +283,13 @@ class WhisperDictation:
                 self.update_icon(state="done")
                 print("📋 Copied to clipboard!")
 
+                # Auto-paste the text at cursor position
+                import time
+
+                time.sleep(0.1)  # Small delay to ensure clipboard is ready
+                keyboard.press_and_release("ctrl+v")
+                print("✨ Auto-pasted!")
+
                 # Return to blue (idle) after 2 seconds
                 threading.Timer(2.0, lambda: self.update_icon(state="idle")).start()
             else:

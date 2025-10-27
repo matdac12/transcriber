@@ -36,30 +36,58 @@ class WhisperDictation:
         self.listening = False
         self.record_thread = None
         self.icon = None
+        self.model_size = model_size  # Track current model size
+        self.device = "auto"
+        self.compute_type = "int8"  # int8 for CPU compatibility
 
-        print(f"Loading faster-whisper {model_size} model...")
-        print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
-
-        try:
-            device = "auto"
-            compute_type = "int8"  # int8 for CPU compatibility
-            self.model = WhisperModel(
-                model_size, device=device, compute_type=compute_type
-            )
-            if self.debug:
-                print(
-                    f"[DEBUG] faster-whisper loaded (device={device}, compute_type={compute_type})"
-                )
-            print("Model loaded successfully!")
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            raise
+        self.load_model(model_size)
 
         # Log file setup - use AppData for user-writable location
         log_dir = os.getenv("LOCALAPPDATA") or os.path.expanduser("~")
         app_dir = os.path.join(log_dir, "WhisperDictation")
         os.makedirs(app_dir, exist_ok=True)
         self.log_file = os.path.join(app_dir, "dictation_log.txt")
+
+    def load_model(self, model_size):
+        """Load or reload the Whisper model."""
+        print(f"Loading faster-whisper {model_size} model...")
+        print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
+
+        try:
+            self.model = WhisperModel(
+                model_size, device=self.device, compute_type=self.compute_type
+            )
+            self.model_size = model_size
+            if self.debug:
+                print(
+                    f"[DEBUG] faster-whisper loaded (device={self.device}, compute_type={self.compute_type})"
+                )
+            print("Model loaded successfully!")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise
+
+    def switch_model(self, model_size):
+        """Switch to a different model size."""
+        print(f"[SWITCH] Attempting to switch from {self.model_size} to {model_size}")
+
+        if self.is_recording:
+            print("⚠️  Cannot switch model while recording. Please stop recording first.")
+            return False
+
+        if model_size == self.model_size:
+            print(f"ℹ️  Already using {model_size} model.")
+            return True
+
+        try:
+            self.load_model(model_size)
+            print(f"✓ Switched to {model_size} model (self.model_size = {self.model_size})")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to switch model: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     def log_transcription(self, text, duration):
         """Save transcription to log file."""
@@ -359,19 +387,53 @@ def main():
         icon.stop()
         print("Exiting...")
 
-    # Create the menu
-    menu = Menu(
-        MenuItem("Start Listening", on_start),
-        MenuItem("Stop Listening", on_stop),
-        Menu.SEPARATOR,
-        MenuItem("View Log", on_open_log),
-        MenuItem("Clear Log", on_clear_log),
-        Menu.SEPARATOR,
-        MenuItem("Exit", on_exit),
-    )
+    def on_switch_tiny(icon, item):
+        """Switch to Tiny model."""
+        print(f"[MENU] Switching to tiny model (current: {dictation.model_size})")
+        result = dictation.switch_model("tiny")
+        print(f"[MENU] Switch result: {result}, new model: {dictation.model_size}")
+        # Always update the menu to refresh checkmarks
+        icon.menu = create_menu()
+        print(f"[MENU] Menu updated")
+
+    def on_switch_base(icon, item):
+        """Switch to Base model."""
+        print(f"[MENU] Switching to base model (current: {dictation.model_size})")
+        result = dictation.switch_model("base")
+        print(f"[MENU] Switch result: {result}, new model: {dictation.model_size}")
+        # Always update the menu to refresh checkmarks
+        icon.menu = create_menu()
+        print(f"[MENU] Menu updated")
+
+    def model_is_tiny(item):
+        """Check if current model is tiny (for menu checkmark)."""
+        return dictation.model_size == "tiny"
+
+    def model_is_base(item):
+        """Check if current model is base (for menu checkmark)."""
+        return dictation.model_size == "base"
+
+    def create_menu():
+        """Create the menu dynamically to allow updates."""
+        # Show which model is active in the label
+        tiny_label = "✓ Tiny Model" if dictation.model_size == "tiny" else "  Tiny Model"
+        base_label = "✓ Base Model" if dictation.model_size == "base" else "  Base Model"
+
+        return Menu(
+            MenuItem("Start Listening", on_start),
+            MenuItem("Stop Listening", on_stop),
+            Menu.SEPARATOR,
+            MenuItem(tiny_label, on_switch_tiny),
+            MenuItem(base_label, on_switch_base),
+            Menu.SEPARATOR,
+            MenuItem("View Log", on_open_log),
+            MenuItem("Clear Log", on_clear_log),
+            Menu.SEPARATOR,
+            MenuItem("Exit", on_exit),
+        )
 
     # Create and run the icon
-    icon = Icon("Whisper Dictation", dictation.create_icon(color="blue"), menu=menu)
+    icon = Icon("Whisper Dictation", dictation.create_icon(color="blue"), menu=create_menu())
     dictation.icon = icon
 
     print("\n✓ Systray app started!")

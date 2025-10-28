@@ -1,26 +1,41 @@
-# Whisper Dictation - Windows Systray App
+# Whisper Dictation & File Transcriber
 
-A lightweight Windows systray application for hands-free speech-to-text dictation using OpenAI's Whisper model. **Works completely offline** with no internet required.
+A comprehensive Windows application suite featuring real-time speech-to-text dictation and audio file transcription using OpenAI's Whisper model. **Works completely offline** with no internet required.
 
 Perfect for:
 - Quick note-taking while working
 - Voice dictation for emails and documents
+- Transcribing interviews, podcasts, and recordings
+- Converting meeting recordings to text
 - Capturing ideas without interrupting your workflow
 - Privacy-conscious users (all processing local)
 
 ## Features
 
-✨ **Core Features:**
+✨ **Real-Time Dictation Features:**
 - 🎤 **Global hotkey recording** - Press Alt Gr to start/stop recording from anywhere
 - ✨ **Auto-paste** - Transcribed text automatically pastes at your cursor position
 - 📋 **Clipboard integration** - Text also copied to clipboard for manual pasting
 - 🎨 **Color-coded visual feedback** - Systray icon shows status: 🔵 Blue (ready) → 🔴 Red (recording) → 🟢 Green (done!)
 - 📝 **Persistent logging** - All transcriptions saved with timestamp and duration
-- 🔧 **No internet required** - Everything runs locally on your machine
 - 🎯 **Minimal interference** - Runs silently in system tray, no terminal window
+
+🎬 **File Transcription Features (NEW!):**
+- 📁 **Upload audio files** - Support for M4A, MP3, WAV, AAC, FLAC, OGG (iPhone voice notes ready!)
+- 📱 **iPhone compatible** - Direct support for iPhone voice memos (.m4a)
+- 📄 **Easy-to-use GUI** - Simple window interface for file selection and transcription
+- ⚙️ **Model selection** - Choose from tiny, base, small, medium, or large models
+- 📊 **Progress tracking** - Real-time progress bar for long files
+- 💾 **Save transcriptions** - Export to .txt files with auto-naming
+- 🔄 **Smart chunking** - Automatically divides long files for efficient processing
+- 🖥️ **Dual operation** - Run file transcription and dictation simultaneously
+- ✅ **Zero setup** - Works immediately, no FFmpeg or external tools needed
+
+🚀 **Performance Features:**
 - ⚡ **Blazing fast transcription** - Uses faster-whisper (4-8x faster than original)
 - 🎮 **GPU acceleration** - Auto-detects NVIDIA GPU for 10-20x speedup
 - 🗣️ **Smart VAD** - Voice Activity Detection removes silence for faster processing
+- 🔧 **No internet required** - Everything runs locally on your machine
 
 ## Requirements
 
@@ -32,21 +47,36 @@ Perfect for:
 
 ## Installation
 
-### 1. Clone or Download Repository
+### Option 1: Windows Installer (Recommended for End Users)
+
+**Coming Soon!** A single-click installer will be available that includes:
+- Both dictation and file transcription apps
+- All dependencies pre-configured
+- Start Menu shortcuts
+- Optional auto-start on Windows login
+- No external tools required
+
+To build the installer yourself, see [Building the Windows Installer](#building-the-windows-installer) below.
+
+### Option 2: Development Setup
+
+For developers or users who want to run from source:
+
+#### 1. Clone or Download Repository
 
 ```bash
 git clone https://github.com/matdac12/whisper-dictation.git
 cd whisper-dictation
 ```
 
-### 2. Create Virtual Environment
+#### 2. Create Virtual Environment
 
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
-### 3. Install Dependencies
+#### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -54,7 +84,7 @@ pip install -r requirements.txt
 
 The first time you run the app, Whisper will download the base model (~141MB) automatically.
 
-### 4. GPU Support (Optional - Recommended for Best Performance)
+#### 4. GPU Support (Optional - Recommended for Best Performance)
 
 For **10-20x faster** transcription with NVIDIA GPU, you'll need CUDA 12.x and cuDNN 9 installed, plus CTranslate2 with GPU support.
 
@@ -70,17 +100,29 @@ CTranslate2 will automatically detect and use your GPU if CUDA is properly insta
 
 ## Quick Start
 
-### Option A: Single Launch
+### Real-Time Dictation
+
+**Option A: Single Launch**
 ```bash
 python systray_dictation.py
 ```
 
-### Option B: Silent Launch (No Terminal)
+**Option B: Silent Launch (No Terminal)**
 Double-click: **`run_systray.vbs`**
 
 This launches the app silently with no terminal window - just the systray icon.
 
+### File Transcription
+
+```bash
+python file_transcriber_ui.py
+```
+
+Or from the systray app: Right-click the icon → **"Open File Transcriber..."**
+
 ## Usage
+
+### Real-Time Dictation
 
 1. **Launch the app** (see Quick Start above)
 2. **Right-click the blue systray icon** → "Start Listening"
@@ -91,6 +133,24 @@ This launches the app silently with no terminal window - just the systray icon.
 7. **Icon turns 🟢 GREEN** and text **automatically pastes** at your cursor!
 
 **That's it!** No need to manually paste - your words appear instantly wherever your cursor is positioned.
+
+### File Transcription
+
+1. **Launch the File Transcriber** (see Quick Start above)
+2. **Click "Browse..."** to select your audio file
+   - iPhone voice notes (.m4a) ✅
+   - MP3, AAC, WAV, FLAC, OGG ✅
+3. **Choose a model** from the dropdown (base recommended for balance)
+4. **Click "Transcribe"** and watch the progress bar
+5. **Review the transcription** in the text area
+6. **Click "Save Transcription"** to export as .txt file
+
+**Pro Tips:**
+- Larger models (medium, large) are more accurate but slower
+- Tiny model is great for quick transcriptions and testing
+- Long files are automatically chunked for efficient processing
+- You can run dictation and file transcription simultaneously!
+- **iPhone users:** Just transfer your voice memos and transcribe directly - no conversion needed!
 
 ### Visual Feedback System
 
@@ -107,6 +167,8 @@ No pop-up notifications needed - just watch the icon color!
 
 - **Start Listening** - Activates the hotkey listener
 - **Stop Listening** - Deactivates the hotkey (stops recording capability)
+- **✓ Tiny Model / ✓ Base Model** - Switch between model sizes
+- **Open File Transcriber...** - Launch the file transcription window
 - **View Log** - Opens `dictation_log.txt` in your default text editor
 - **Clear Log** - Deletes all transcription history
 - **Exit** - Closes the application
@@ -225,12 +287,60 @@ pip install -r requirements.txt
 - Check your microphone is working
 - Ensure Python 3.8+ installed
 
+### ❌ File transcription fails with audio format error
+- Supported formats: M4A, MP3, WAV, AAC, FLAC, OGG, MP4 (all included!)
+- Ensure dependencies are installed: `pip install av soundfile scipy`
+- For corrupted files: Try converting with a free tool like [Audacity](https://www.audacityteam.org/)
+
+## Building the Windows Installer
+
+Want to create a standalone Windows installer? Follow these steps:
+
+### Prerequisites
+
+1. **Python environment** with all dependencies installed
+2. **PyInstaller**: `pip install pyinstaller`
+3. **Inno Setup**: Download from https://jrsoftware.org/isinfo.php
+
+### Build Steps
+
+1. **Build the executables:**
+   ```bash
+   python build_installer.py
+   ```
+
+   This creates:
+   - `dist/DictationApp/WhisperDictation.exe` - Systray dictation app
+   - `dist/DictationApp/FileTranscriber.exe` - File transcription GUI
+   - Supporting files and documentation
+
+2. **Create the installer:**
+   - Open `installer.iss` in Inno Setup
+   - Click **Compile** (or right-click → Compile)
+   - The installer will be created in `installer_output/`
+
+3. **Distribute:**
+   - Share `WhisperDictation_Setup.exe` with users
+   - ~50-100MB (includes both apps and dependencies)
+   - First run will download AI models (~150MB)
+
+The installer includes:
+- Start Menu shortcuts for both apps
+- Optional desktop shortcut
+- Optional auto-start on Windows login
+- Uninstaller
+- Quick start documentation
+
 ## File Structure
 
 ```
 whisper-dictation/
-├── systray_dictation.py      # Main application
-├── run_systray.vbs           # Silent launcher
+├── systray_dictation.py      # Real-time dictation app (systray)
+├── file_transcriber_ui.py    # File transcription GUI
+├── file_transcriber_core.py  # File transcription logic
+├── run_systray.vbs           # Silent launcher for systray app
+├── build_installer.py        # PyInstaller build script
+├── installer.iss             # Inno Setup installer script
 ├── requirements.txt          # Python dependencies
 ├── dictation_log.txt         # Auto-generated transcription log
 ├── README.md                 # This file
@@ -239,10 +349,20 @@ whisper-dictation/
 
 ## How It Works
 
+### Real-Time Dictation
+
 1. **Recording** - Captures audio from your microphone in real-time (🔴 red icon)
 2. **Processing** - Whisper model converts audio to text (runs locally)
 3. **Output** - Text auto-pastes at cursor position, icon turns 🟢 green
 4. **Logging** - Everything is saved with timestamp and duration
+
+### File Transcription
+
+1. **File Loading** - FFmpeg converts audio file to 16kHz mono format
+2. **Chunking** - Long files divided into 30-minute segments
+3. **Processing** - Each chunk transcribed with Whisper model
+4. **Assembly** - Chunks combined into complete transcription
+5. **Export** - Save as .txt file with automatic naming
 
 No data is ever sent to external servers - it's 100% local processing!
 
@@ -253,8 +373,10 @@ This app includes several optimizations for Windows:
 1. **faster-whisper** - Uses CTranslate2 for 4-8x faster CPU inference
 2. **Auto GPU detection** - Automatically uses NVIDIA GPU if available (10-20x speedup)
 3. **Voice Activity Detection (VAD)** - Removes silence before/after speech for faster processing
-4. **Color-coded visual feedback** - No popup notifications to distract you
-5. **Optimized audio buffering** - Uses deque for efficient memory management
+4. **Smart chunking** - Long audio files automatically divided for efficient processing
+5. **Color-coded visual feedback** - No popup notifications to distract you
+6. **Optimized audio buffering** - Uses deque for efficient memory management
+7. **Shared model loading** - Both apps can use same model instance to save memory
 
 ### Performance Tips
 

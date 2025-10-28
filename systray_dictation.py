@@ -11,6 +11,7 @@ import os
 import sys
 import warnings
 from collections import deque
+import subprocess
 
 # Suppress pystray Windows warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -405,6 +406,26 @@ def main():
         icon.menu = create_menu()
         print(f"[MENU] Menu updated")
 
+    def on_open_file_transcriber(icon, item):
+        """Open the file transcriber window."""
+        try:
+            # Get the path to the file transcriber script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            transcriber_script = os.path.join(script_dir, "file_transcriber_ui.py")
+
+            # Launch the file transcriber in a separate process
+            if sys.platform == "win32":
+                # On Windows, use pythonw to avoid showing console
+                python_exe = sys.executable.replace("python.exe", "pythonw.exe")
+                subprocess.Popen([python_exe, transcriber_script])
+            else:
+                # On other platforms, use regular python
+                subprocess.Popen([sys.executable, transcriber_script])
+
+            print("✓ File transcriber window opened")
+        except Exception as e:
+            print(f"❌ Error opening file transcriber: {e}")
+
     def model_is_tiny(item):
         """Check if current model is tiny (for menu checkmark)."""
         return dictation.model_size == "tiny"
@@ -425,6 +446,8 @@ def main():
             Menu.SEPARATOR,
             MenuItem(tiny_label, on_switch_tiny),
             MenuItem(base_label, on_switch_base),
+            Menu.SEPARATOR,
+            MenuItem("Open File Transcriber...", on_open_file_transcriber),
             Menu.SEPARATOR,
             MenuItem("View Log", on_open_log),
             MenuItem("Clear Log", on_clear_log),

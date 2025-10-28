@@ -5,3 +5,7 @@ pyperclip
 keyboard
 pystray
 pillow
+soundfile
+scipy
+av
+ttkbootstrap

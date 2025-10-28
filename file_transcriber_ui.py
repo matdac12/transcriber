@@ -12,6 +12,7 @@ import os
 import logging
 from typing import Optional
 from file_transcriber_core import FileTranscriber, get_supported_formats, format_file_duration
+from ollama_helper import OllamaHelper, format_combined_output
 
 
 class FileTranscriberWindow:
@@ -32,9 +33,21 @@ class FileTranscriberWindow:
         self.transcriber: Optional[FileTranscriber] = None
         self.current_file_path: Optional[str] = None
         self.is_transcribing = False
+        self.current_summary: Optional[str] = None
+
+        # Initialize Ollama helper
+        self.ollama = OllamaHelper()
+        self.ollama_available = False
+        self.ollama_status_message = ""
+
+        # Store style for theme switching
+        self.style = ttk.Style()
 
         # Setup UI
         self.setup_ui()
+
+        # Check Ollama availability after UI is setup
+        self.check_ollama_availability()
 
         # Handle window close
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -49,7 +62,7 @@ class FileTranscriberWindow:
 
         # Configure grid weights for responsiveness
         main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(4, weight=1)
+        main_frame.rowconfigure(10, weight=1)  # Transcription text area row gets extra space
 
         # File selection section
         ttk.Label(main_frame, text="Audio File:", font=('Segoe UI', 11, 'bold')).grid(
@@ -96,6 +109,57 @@ class FileTranscriberWindow:
             bootstyle="secondary"
         ).grid(row=1, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
 
+        # Theme selection section
+        ttk.Label(main_frame, text="Theme:", font=('Segoe UI', 11, 'bold')).grid(
+            row=2, column=0, sticky=W, pady=(5, 10)
+        )
+
+        # Get available themes
+        available_themes = sorted(self.style.theme_names())
+        current_theme = self.style.theme_use()
+
+        self.theme_var = ttk.StringVar(value=current_theme)
+        theme_combo = ttk.Combobox(
+            main_frame,
+            textvariable=self.theme_var,
+            values=available_themes,
+            state="readonly",
+            width=15
+        )
+        theme_combo.grid(row=2, column=1, sticky=W, padx=(10, 0), pady=(5, 10))
+        theme_combo.bind("<<ComboboxSelected>>", self.on_theme_changed)
+
+        ttk.Label(
+            main_frame,
+            text="(change appearance instantly)",
+            font=('Segoe UI', 9),
+            bootstyle="secondary"
+        ).grid(row=2, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
+
+        # Ollama model selection section
+        ttk.Label(main_frame, text="Ollama Model:", font=('Segoe UI', 11, 'bold')).grid(
+            row=3, column=0, sticky=W, pady=(5, 10)
+        )
+
+        ollama_models = ["llama3.2:3b", "llama3.1:8b", "deepseek-r1:1.5b"]
+        self.ollama_model_var = ttk.StringVar(value=self.ollama.model)
+        ollama_model_combo = ttk.Combobox(
+            main_frame,
+            textvariable=self.ollama_model_var,
+            values=ollama_models,
+            state="readonly",
+            width=15
+        )
+        ollama_model_combo.grid(row=3, column=1, sticky=W, padx=(10, 0), pady=(5, 10))
+        ollama_model_combo.bind("<<ComboboxSelected>>", self.on_ollama_model_changed)
+
+        ttk.Label(
+            main_frame,
+            text="(for summary generation)",
+            font=('Segoe UI', 9),
+            bootstyle="secondary"
+        ).grid(row=3, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
+
         # Transcribe button
         self.transcribe_btn = ttk.Button(
             main_frame,
@@ -105,7 +169,7 @@ class FileTranscriberWindow:
             state=DISABLED,
             width=20
         )
-        self.transcribe_btn.grid(row=2, column=0, columnspan=3, pady=(15, 10))
+        self.transcribe_btn.grid(row=4, column=0, columnspan=3, pady=(15, 10))
 
         # Progress section
         self.progress_var = ttk.StringVar(value="Ready to transcribe")
@@ -115,7 +179,7 @@ class FileTranscriberWindow:
             font=('Segoe UI', 10),
             bootstyle="info"
         )
-        progress_label.grid(row=3, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
+        progress_label.grid(row=5, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
 
         self.progress_bar = ttk.Progressbar(
             main_frame,
@@ -123,19 +187,58 @@ class FileTranscriberWindow:
             maximum=100,
             bootstyle="success-striped"
         )
-        self.progress_bar.grid(row=4, column=0, columnspan=3, sticky=(W, E), pady=(0, 10))
+        self.progress_bar.grid(row=6, column=0, columnspan=3, sticky=(W, E), pady=(0, 15))
+
+        # Summary section
+        summary_header_frame = ttk.Frame(main_frame)
+        summary_header_frame.grid(row=7, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
+
+        ttk.Label(summary_header_frame, text="Summary:", font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+
+        self.generate_summary_btn = ttk.Button(
+            summary_header_frame,
+            text="🤖 Generate Summary",
+            command=self.generate_summary,
+            bootstyle="info-outline",
+            state=DISABLED,
+            width=20
+        )
+        self.generate_summary_btn.pack(side=LEFT, padx=(15, 0))
+
+        # Ollama status label
+        self.ollama_status_label = ttk.Label(
+            summary_header_frame,
+            text="",
+            font=('Segoe UI', 9),
+            bootstyle="secondary"
+        )
+        self.ollama_status_label.pack(side=LEFT, padx=(10, 0))
+
+        # Frame for summary text area
+        summary_frame = ttk.Frame(main_frame)
+        summary_frame.grid(row=8, column=0, columnspan=3, sticky=(W, E), pady=(5, 10))
+        summary_frame.columnconfigure(0, weight=1)
+
+        self.summary_text = scrolledtext.ScrolledText(
+            summary_frame,
+            wrap=WORD,
+            width=80,
+            height=6,
+            font=('Consolas', 10)
+        )
+        self.summary_text.grid(row=0, column=0, sticky=(W, E))
 
         # Transcription text area
         ttk.Label(main_frame, text="Transcription:", font=('Segoe UI', 11, 'bold')).grid(
-            row=5, column=0, columnspan=3, sticky=W, pady=(15, 5)
+            row=9, column=0, columnspan=3, sticky=W, pady=(10, 5)
         )
 
         # Frame for text area with scrollbar
         text_frame = ttk.Frame(main_frame)
-        text_frame.grid(row=6, column=0, columnspan=3, sticky=(W, E, N, S), pady=(0, 10))
+        text_frame.grid(row=10, column=0, columnspan=3, sticky=(W, E, N, S), pady=(0, 10))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
-        main_frame.rowconfigure(6, weight=1)
+        main_frame.rowconfigure(10, weight=1)
 
         self.transcription_text = scrolledtext.ScrolledText(
             text_frame,
@@ -148,22 +251,42 @@ class FileTranscriberWindow:
 
         # Buttons section
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=7, column=0, columnspan=3, pady=(10, 0))
+        button_frame.grid(row=11, column=0, columnspan=3, pady=(10, 0))
 
-        self.save_btn = ttk.Button(
+        self.save_summary_btn = ttk.Button(
+            button_frame,
+            text="💾 Save Summary",
+            command=self.save_summary_only,
+            bootstyle="info-outline",
+            state=DISABLED,
+            width=18
+        )
+        self.save_summary_btn.pack(side=LEFT, padx=(0, 8))
+
+        self.save_transcription_btn = ttk.Button(
             button_frame,
             text="💾 Save Transcription",
-            command=self.save_transcription,
+            command=self.save_transcription_only,
             bootstyle="primary-outline",
             state=DISABLED,
             width=20
         )
-        self.save_btn.pack(side=LEFT, padx=(0, 10))
+        self.save_transcription_btn.pack(side=LEFT, padx=(0, 8))
+
+        self.save_both_btn = ttk.Button(
+            button_frame,
+            text="💾 Save Both",
+            command=self.save_both,
+            bootstyle="success-outline",
+            state=DISABLED,
+            width=18
+        )
+        self.save_both_btn.pack(side=LEFT, padx=(0, 10))
 
         self.clear_btn = ttk.Button(
             button_frame,
-            text="🗑️ Clear",
-            command=self.clear_transcription,
+            text="🗑️ Clear All",
+            command=self.clear_all,
             bootstyle="secondary-outline",
             width=15
         )
@@ -210,6 +333,23 @@ class FileTranscriberWindow:
         if self.transcriber is not None:
             self.transcriber.switch_model(model_size)
 
+    def on_theme_changed(self, event=None):
+        """Handle theme selection change."""
+        new_theme = self.theme_var.get()
+        self.style.theme_use(new_theme)
+        self.status_var.set(f"Theme changed to: {new_theme}")
+        self.logger.info(f"Theme changed to: {new_theme}")
+
+    def on_ollama_model_changed(self, event=None):
+        """Handle Ollama model selection change."""
+        new_model = self.ollama_model_var.get()
+        self.ollama.model = new_model
+        self.status_var.set(f"Ollama model changed to: {new_model}")
+        self.logger.info(f"Ollama model changed to: {new_model}")
+
+        # Re-check availability with new model
+        self.check_ollama_availability()
+
     def start_transcription(self):
         """Start the transcription process in a background thread."""
         if self.current_file_path is None:
@@ -227,7 +367,9 @@ class FileTranscriberWindow:
         self.is_transcribing = True
         self.transcribe_btn.config(state=DISABLED)
         self.select_file_btn.config(state=DISABLED)
-        self.save_btn.config(state=DISABLED)
+        self.save_summary_btn.config(state=DISABLED)
+        self.save_transcription_btn.config(state=DISABLED)
+        self.save_both_btn.config(state=DISABLED)
         self.progress_bar['value'] = 0
 
         # Initialize transcriber if needed
@@ -288,7 +430,11 @@ class FileTranscriberWindow:
         self.is_transcribing = False
         self.transcribe_btn.config(state=NORMAL)
         self.select_file_btn.config(state=NORMAL)
-        self.save_btn.config(state=NORMAL)
+        self.save_transcription_btn.config(state=NORMAL)  # Can save transcription now
+
+        # Enable generate summary button if Ollama is available
+        if self.ollama_available:
+            self.generate_summary_btn.config(state=NORMAL)
 
         self.logger.info("Transcription completed successfully")
 
@@ -304,8 +450,106 @@ class FileTranscriberWindow:
 
         messagebox.showerror("Transcription Error", error_msg)
 
-    def save_transcription(self):
-        """Save transcription to a text file."""
+    def check_ollama_availability(self):
+        """Check if Ollama is available and update UI accordingly."""
+        is_available, message = self.ollama.is_available()
+        self.ollama_available = is_available
+        self.ollama_status_message = message
+
+        if is_available:
+            self.ollama_status_label.config(text="✓ Ollama ready", bootstyle="success")
+            self.logger.info(f"Ollama is available: {message}")
+        else:
+            self.ollama_status_label.config(text="⚠ Ollama unavailable", bootstyle="warning")
+            self.generate_summary_btn.config(state=DISABLED)
+            self.logger.warning(f"Ollama not available: {message}")
+            self.status_var.set(f"Ollama not available - {message}")
+
+    def generate_summary(self):
+        """Generate summary using Ollama."""
+        transcription = self.transcription_text.get(1.0, END).strip()
+
+        if not transcription:
+            messagebox.showwarning("No Transcription", "Please transcribe an audio file first.")
+            return
+
+        # Disable button during generation
+        self.generate_summary_btn.config(state=DISABLED)
+        self.status_var.set("Generating summary with Ollama...")
+
+        # Run in background thread
+        thread = threading.Thread(target=self.generate_summary_thread, args=(transcription,), daemon=True)
+        thread.start()
+
+    def generate_summary_thread(self, transcription: str):
+        """Background thread for summary generation."""
+        def progress_callback(message):
+            self.window.after(0, lambda: self.status_var.set(message))
+
+        success, result = self.ollama.generate_summary(transcription, progress_callback)
+
+        if success:
+            # Update UI on main thread
+            self.window.after(0, lambda: self.summary_generation_complete(result))
+        else:
+            # Show error on main thread
+            self.window.after(0, lambda: self.summary_generation_error(result))
+
+    def summary_generation_complete(self, summary: str):
+        """Handle successful summary generation."""
+        self.current_summary = summary
+        self.summary_text.delete(1.0, END)
+        self.summary_text.insert(1.0, summary)
+        self.status_var.set("Summary generated successfully!")
+
+        # Enable save buttons
+        self.save_summary_btn.config(state=NORMAL)
+        self.save_both_btn.config(state=NORMAL)
+        self.generate_summary_btn.config(state=NORMAL)
+
+        self.logger.info("Summary generated successfully")
+
+    def summary_generation_error(self, error_msg: str):
+        """Handle summary generation error."""
+        self.status_var.set(f"Summary generation failed: {error_msg}")
+        self.generate_summary_btn.config(state=NORMAL)
+        messagebox.showerror("Summary Generation Error", error_msg)
+
+    def save_summary_only(self):
+        """Save only the summary to a text file."""
+        summary = self.summary_text.get(1.0, END).strip()
+
+        if not summary:
+            messagebox.showwarning("No Summary", "Please generate a summary first.")
+            return
+
+        # Suggest filename
+        suggested_name = "summary.txt"
+        if self.current_file_path:
+            base_name = os.path.splitext(os.path.basename(self.current_file_path))[0]
+            suggested_name = f"{base_name}_summary.txt"
+
+        file_path = filedialog.asksaveasfilename(
+            title="Save Summary",
+            defaultextension=".txt",
+            initialfile=suggested_name,
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(summary)
+                self.status_var.set(f"Summary saved to: {os.path.basename(file_path)}")
+                messagebox.showinfo("Success", f"Summary saved to:\n{file_path}")
+                self.logger.info(f"Summary saved to: {file_path}")
+            except Exception as e:
+                error_msg = f"Error saving file: {str(e)}"
+                self.logger.error(error_msg)
+                messagebox.showerror("Save Error", error_msg)
+
+    def save_transcription_only(self):
+        """Save only the transcription to a text file."""
         transcription = self.transcription_text.get(1.0, END).strip()
 
         if not transcription:
@@ -329,7 +573,7 @@ class FileTranscriberWindow:
             try:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(transcription)
-                self.status_var.set(f"Saved to: {os.path.basename(file_path)}")
+                self.status_var.set(f"Transcription saved to: {os.path.basename(file_path)}")
                 messagebox.showinfo("Success", f"Transcription saved to:\n{file_path}")
                 self.logger.info(f"Transcription saved to: {file_path}")
             except Exception as e:
@@ -337,14 +581,59 @@ class FileTranscriberWindow:
                 self.logger.error(error_msg)
                 messagebox.showerror("Save Error", error_msg)
 
-    def clear_transcription(self):
-        """Clear the transcription text area."""
-        if messagebox.askyesno("Clear", "Clear the current transcription?"):
+    def save_both(self):
+        """Save both summary and transcription to a single file."""
+        summary = self.summary_text.get(1.0, END).strip()
+        transcription = self.transcription_text.get(1.0, END).strip()
+
+        if not summary or not transcription:
+            messagebox.showwarning("Missing Content", "Please generate both summary and transcription first.")
+            return
+
+        # Suggest filename
+        suggested_name = "transcription_with_summary.txt"
+        if self.current_file_path:
+            base_name = os.path.splitext(os.path.basename(self.current_file_path))[0]
+            suggested_name = f"{base_name}_complete.txt"
+
+        file_path = filedialog.asksaveasfilename(
+            title="Save Summary and Transcription",
+            defaultextension=".txt",
+            initialfile=suggested_name,
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+
+        if file_path:
+            try:
+                # Use the format_combined_output helper
+                combined_content = format_combined_output(summary, transcription)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(combined_content)
+                self.status_var.set(f"Summary and transcription saved to: {os.path.basename(file_path)}")
+                messagebox.showinfo("Success", f"Both summary and transcription saved to:\n{file_path}")
+                self.logger.info(f"Summary and transcription saved to: {file_path}")
+            except Exception as e:
+                error_msg = f"Error saving file: {str(e)}"
+                self.logger.error(error_msg)
+                messagebox.showerror("Save Error", error_msg)
+
+    def clear_all(self):
+        """Clear both summary and transcription text areas."""
+        if messagebox.askyesno("Clear All", "Clear both summary and transcription?"):
             self.transcription_text.delete(1.0, END)
+            self.summary_text.delete(1.0, END)
+            self.current_summary = None
             self.progress_bar['value'] = 0
-            self.progress_var.set("Ready")
+            self.progress_var.set("Ready to transcribe")
             self.status_var.set("Cleared")
-            self.logger.info("Transcription cleared")
+
+            # Disable save buttons
+            self.save_summary_btn.config(state=DISABLED)
+            self.save_transcription_btn.config(state=DISABLED)
+            self.save_both_btn.config(state=DISABLED)
+            self.generate_summary_btn.config(state=DISABLED)
+
+            self.logger.info("Summary and transcription cleared")
 
     def on_closing(self):
         """Handle window close event."""

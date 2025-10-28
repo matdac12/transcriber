@@ -77,6 +77,7 @@ def build_file_transcriber():
         '--hidden-import=numpy',
         '--hidden-import=av',
         '--hidden-import=ttkbootstrap',
+        '--hidden-import=requests',
         '--collect-all=faster_whisper',
         '--collect-all=ctranslate2',
         '--collect-all=soundfile',
@@ -104,7 +105,7 @@ def check_dependencies():
     print("Checking dependencies...")
     print("=" * 60)
 
-    required = ['faster_whisper', 'soundfile', 'scipy', 'av', 'tkinter', 'pystray', 'ttkbootstrap']
+    required = ['faster_whisper', 'soundfile', 'scipy', 'av', 'tkinter', 'pystray', 'ttkbootstrap', 'requests']
     missing = []
 
     for module in required:

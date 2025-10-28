@@ -82,12 +82,12 @@ class OllamaHelper:
                 progress_callback("Sending request to Ollama...")
 
             # Prepare the prompt
-            prompt = f"""Please provide a concise summary of the following transcription. Focus on the main points and key information:
+            prompt = f"""Fornisci un riassunto conciso della seguente trascrizione. Concentrati sui punti principali e le informazioni chiave:
 
-Transcription:
+Trascrizione:
 {transcription}
 
-Summary:"""
+Riassunto:"""
 
             # Make request to Ollama
             self.logger.info(f"Generating summary with {self.model}")
@@ -139,11 +139,11 @@ def format_combined_output(summary: str, transcription: str) -> str:
     Returns:
         Formatted markdown text
     """
-    return f"""# Summary
+    return f"""# Riassunto
 
 {summary}
 
-# Transcription
+# Trascrizione
 
 {transcription}
 """

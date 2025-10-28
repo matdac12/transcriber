@@ -169,13 +169,13 @@ class FileTranscriber:
             self.logger.error(f"PyAV failed: {e}")
             raise
 
-    def chunk_audio(self, audio_array: np.ndarray, chunk_duration_seconds: int = 1800) -> List[np.ndarray]:
+    def chunk_audio(self, audio_array: np.ndarray, chunk_duration_seconds: int = 90) -> List[np.ndarray]:
         """
         Split audio into chunks for processing long files.
 
         Args:
             audio_array: Audio data as numpy array
-            chunk_duration_seconds: Duration of each chunk in seconds (default: 30 minutes)
+            chunk_duration_seconds: Duration of each chunk in seconds (default: 90 seconds)
 
         Returns:
             List of audio chunks
@@ -246,7 +246,7 @@ class FileTranscriber:
         file_path: str,
         language: str = "en",
         beam_size: int = 5,
-        progress_callback: Optional[Callable[[int, int, str], None]] = None
+        progress_callback: Optional[Callable[[int, int, str, str], None]] = None
     ) -> str:
         """
         Transcribe an entire audio file.
@@ -255,7 +255,7 @@ class FileTranscriber:
             file_path: Path to the audio file
             language: Language code (default: en)
             beam_size: Beam size for decoding
-            progress_callback: Optional callback function(current_chunk, total_chunks, status_message)
+            progress_callback: Optional callback function(current_chunk, total_chunks, status_message, partial_transcription)
 
         Returns:
             Complete transcription as string
@@ -263,13 +263,13 @@ class FileTranscriber:
         try:
             # Load the audio file
             if progress_callback:
-                progress_callback(0, 1, "Loading audio file...")
+                progress_callback(0, 1, "Loading audio file...", "")
 
             audio_array, sample_rate = self.load_audio_file(file_path)
 
             # Chunk the audio
             if progress_callback:
-                progress_callback(0, 1, "Preparing chunks...")
+                progress_callback(0, 1, "Preparing chunks...", "")
 
             chunks = self.chunk_audio(audio_array)
             total_chunks = len(chunks)
@@ -283,17 +283,27 @@ class FileTranscriber:
                     progress_callback(
                         i,
                         total_chunks,
-                        f"Transcribing chunk {i+1}/{total_chunks}..."
+                        f"Transcribing chunk {i+1}/{total_chunks}...",
+                        " ".join(transcriptions)  # Send partial result so far
                     )
 
                 text = self.transcribe_chunk(chunk, language=language, beam_size=beam_size)
                 transcriptions.append(text)
 
+                # Send partial transcription after completing this chunk
+                if progress_callback:
+                    progress_callback(
+                        i + 1,
+                        total_chunks,
+                        f"Completed chunk {i+1}/{total_chunks}",
+                        " ".join(transcriptions)  # Send updated partial result
+                    )
+
             # Combine all transcriptions
             full_transcription = " ".join(transcriptions)
 
             if progress_callback:
-                progress_callback(total_chunks, total_chunks, "Transcription complete!")
+                progress_callback(total_chunks, total_chunks, "Transcription complete!", full_transcription)
 
             self.logger.info(f"Full transcription: {len(full_transcription)} characters")
 
@@ -302,7 +312,7 @@ class FileTranscriber:
         except Exception as e:
             self.logger.error(f"Error transcribing file: {e}")
             if progress_callback:
-                progress_callback(0, 1, f"Error: {str(e)}")
+                progress_callback(0, 1, f"Error: {str(e)}", "")
             raise
 
     def save_transcription(self, text: str, output_path: str) -> None:

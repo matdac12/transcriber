@@ -219,6 +219,15 @@ class FileTranscriberWindow:
         summary_frame.grid(row=8, column=0, columnspan=3, sticky=(W, E), pady=(5, 10))
         summary_frame.columnconfigure(0, weight=1)
 
+        # Placeholder label (shown when no summary yet)
+        self.summary_placeholder = ttk.Label(
+            summary_frame,
+            text="Summary will appear here after generation...",
+            font=('Segoe UI', 10, 'italic'),
+            bootstyle="secondary"
+        )
+        self.summary_placeholder.grid(row=0, column=0, sticky=(W, E), pady=20)
+
         self.summary_text = scrolledtext.ScrolledText(
             summary_frame,
             wrap=WORD,
@@ -227,6 +236,7 @@ class FileTranscriberWindow:
             font=('Consolas', 10)
         )
         self.summary_text.grid(row=0, column=0, sticky=(W, E))
+        self.summary_text.grid_remove()  # Hide initially
 
         # Transcription text area
         ttk.Label(main_frame, text="Transcription:", font=('Segoe UI', 11, 'bold')).grid(
@@ -384,24 +394,29 @@ class FileTranscriberWindow:
     def transcribe_thread(self):
         """Background thread for transcription."""
         try:
-            # Callback for progress updates
-            def progress_callback(current, total, message):
+            # Clear transcription text at start
+            self.window.after(0, lambda: self.clear_transcription_text())
+
+            # Callback for progress updates with partial transcription
+            def progress_callback(current, total, message, partial_transcription):
                 # Calculate percentage
                 if total > 0:
                     percentage = int((current / total) * 100)
-                    self.window.after(0, lambda: self.update_progress(percentage, message))
+                    self.window.after(0, lambda m=message, p=percentage, pt=partial_transcription:
+                                      self.update_progress_with_partial(p, m, pt))
                 else:
-                    self.window.after(0, lambda: self.update_progress(0, message))
+                    self.window.after(0, lambda m=message, pt=partial_transcription:
+                                      self.update_progress_with_partial(0, m, pt))
 
             # Perform transcription
             transcription = self.transcriber.transcribe_file(
                 self.current_file_path,
-                language="en",
+                language="it",
                 beam_size=5,
                 progress_callback=progress_callback
             )
 
-            # Update UI with results
+            # Update UI with results (transcription already displayed progressively)
             self.window.after(0, lambda: self.transcription_complete(transcription))
 
         except Exception as e:
@@ -413,6 +428,22 @@ class FileTranscriberWindow:
         """Update progress bar and status message."""
         self.progress_bar['value'] = percentage
         self.progress_var.set(message)
+        self.window.update_idletasks()
+
+    def clear_transcription_text(self):
+        """Clear the transcription text area."""
+        self.transcription_text.delete(1.0, END)
+
+    def update_progress_with_partial(self, percentage: int, message: str, partial_transcription: str):
+        """Update progress bar, status message, and display partial transcription."""
+        self.progress_bar['value'] = percentage
+        self.progress_var.set(message)
+
+        # Update transcription text area with partial result
+        if partial_transcription:
+            self.transcription_text.delete(1.0, END)
+            self.transcription_text.insert(1.0, partial_transcription)
+
         self.window.update_idletasks()
 
     def transcription_complete(self, transcription: str):
@@ -498,6 +529,12 @@ class FileTranscriberWindow:
     def summary_generation_complete(self, summary: str):
         """Handle successful summary generation."""
         self.current_summary = summary
+
+        # Hide placeholder and show summary text box
+        self.summary_placeholder.grid_remove()
+        self.summary_text.grid()
+
+        # Update summary text
         self.summary_text.delete(1.0, END)
         self.summary_text.insert(1.0, summary)
         self.status_var.set("Summary generated successfully!")
@@ -623,6 +660,11 @@ class FileTranscriberWindow:
             self.transcription_text.delete(1.0, END)
             self.summary_text.delete(1.0, END)
             self.current_summary = None
+
+            # Hide summary text box and show placeholder
+            self.summary_text.grid_remove()
+            self.summary_placeholder.grid()
+
             self.progress_bar['value'] = 0
             self.progress_var.set("Ready to transcribe")
             self.status_var.set("Cleared")

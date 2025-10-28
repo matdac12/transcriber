@@ -314,7 +314,7 @@ class WhisperDictation:
                 # Auto-paste the text at cursor position
                 import time
 
-                time.sleep(0.1)  # Small delay to ensure clipboard is ready
+                time.sleep(0.02)  # 20ms is sufficient for clipboard sync
                 keyboard.press_and_release("ctrl+v")
                 print("✨ Auto-pasted!")
 

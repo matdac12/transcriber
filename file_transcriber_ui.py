@@ -11,8 +11,233 @@ import threading
 import os
 import logging
 from typing import Optional
-from file_transcriber_core import FileTranscriber, get_supported_formats, format_file_duration
+from file_transcriber_core import FileTranscriber, get_supported_formats, format_file_duration, check_model_exists, get_model_download_size, get_models_path
 from ollama_helper import OllamaHelper, format_combined_output
+import time
+
+
+class ModelDownloadDialog:
+    """Dialog for downloading Whisper models with progress tracking."""
+
+    def __init__(self, parent_window):
+        """Initialize the model download dialog."""
+        self.parent = parent_window
+        self.dialog = ttk.Toplevel(parent_window)
+        self.dialog.title("Download Whisper Models")
+        self.dialog.geometry("550x450")
+        self.dialog.resizable(False, False)
+        self.dialog.grab_set()  # Make modal
+
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (550 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (450 // 2)
+        self.dialog.geometry(f"+{x}+{y}")
+
+        # Download state
+        self.download_thread = None
+        self.is_downloading = False
+        self.download_cancelled = False
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Setup the dialog UI."""
+        main_frame = ttk.Frame(self.dialog, padding=20)
+        main_frame.pack(fill=BOTH, expand=True)
+
+        # Title
+        ttk.Label(
+            main_frame,
+            text="Select Models to Download",
+            font=('Segoe UI', 14, 'bold')
+        ).pack(pady=(0, 10))
+
+        # Description
+        ttk.Label(
+            main_frame,
+            text="Choose one or more Whisper models. Models are downloaded once and stored permanently.",
+            font=('Segoe UI', 10),
+            bootstyle="secondary",
+            wraplength=500
+        ).pack(pady=(0, 20))
+
+        # Model selection frame
+        selection_frame = ttk.LabelFrame(main_frame, text="Available Models", padding=15)
+        selection_frame.pack(fill=X, pady=(0, 15))
+
+        # Model checkboxes with size info
+        self.model_vars = {}
+        models = [
+            ('tiny', '~39 MB', 'Fastest, basic accuracy'),
+            ('base', '~141 MB', 'Recommended - good balance'),
+            ('small', '~461 MB', 'Better accuracy, slower'),
+        ]
+
+        for model_name, size, description in models:
+            # Check if model already exists
+            model_exists = check_model_exists(model_name)
+
+            var = ttk.BooleanVar(value=False)
+            self.model_vars[model_name] = var
+
+            frame = ttk.Frame(selection_frame)
+            frame.pack(fill=X, pady=5)
+
+            cb = ttk.Checkbutton(
+                frame,
+                text=f"{model_name.capitalize()} ({size})",
+                variable=var,
+                bootstyle="success-round-toggle",
+                state=DISABLED if model_exists else NORMAL
+            )
+            cb.pack(side=LEFT)
+
+            status_text = "✓ Installed" if model_exists else description
+            status_style = "success" if model_exists else "secondary"
+
+            ttk.Label(
+                frame,
+                text=status_text,
+                font=('Segoe UI', 9),
+                bootstyle=status_style
+            ).pack(side=LEFT, padx=(10, 0))
+
+        # Progress section
+        self.progress_var = ttk.StringVar(value="Ready to download")
+        self.progress_label = ttk.Label(
+            main_frame,
+            textvariable=self.progress_var,
+            font=('Segoe UI', 10),
+            bootstyle="info"
+        )
+        self.progress_label.pack(pady=(10, 5))
+
+        self.progress_bar = ttk.Progressbar(
+            main_frame,
+            mode='determinate',
+            maximum=100,
+            bootstyle="success-striped"
+        )
+        self.progress_bar.pack(fill=X, pady=(0, 15))
+
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=X, pady=(10, 0))
+
+        self.download_btn = ttk.Button(
+            button_frame,
+            text="📥 Download Selected",
+            command=self.start_download,
+            bootstyle="success",
+            width=20
+        )
+        self.download_btn.pack(side=LEFT, padx=(0, 10))
+
+        self.cancel_btn = ttk.Button(
+            button_frame,
+            text="Cancel",
+            command=self.cancel_download,
+            bootstyle="secondary",
+            width=15
+        )
+        self.cancel_btn.pack(side=LEFT)
+
+        ttk.Label(
+            button_frame,
+            text="(Models install to Program Files)",
+            font=('Segoe UI', 9),
+            bootstyle="secondary"
+        ).pack(side=RIGHT)
+
+    def start_download(self):
+        """Start downloading selected models."""
+        # Get selected models
+        selected_models = [name for name, var in self.model_vars.items() if var.get()]
+
+        if not selected_models:
+            messagebox.showwarning("No Selection", "Please select at least one model to download.")
+            return
+
+        # Disable download button
+        self.download_btn.config(state=DISABLED)
+        self.is_downloading = True
+        self.download_cancelled = False
+
+        # Start download thread
+        self.download_thread = threading.Thread(
+            target=self._download_models,
+            args=(selected_models,),
+            daemon=True
+        )
+        self.download_thread.start()
+
+    def _download_models(self, models):
+        """Download models in background thread."""
+        try:
+            total_models = len(models)
+            models_dir = get_models_path()
+
+            if not models_dir:
+                # Create default models directory
+                import sys
+                if getattr(sys, 'frozen', False):
+                    exe_dir = os.path.dirname(sys.executable)
+                    install_root = os.path.dirname(exe_dir)
+                    models_dir = os.path.join(install_root, 'models')
+                else:
+                    models_dir = os.path.join(os.path.dirname(__file__), 'models')
+
+                os.makedirs(models_dir, exist_ok=True)
+
+            for idx, model_name in enumerate(models):
+                if self.download_cancelled:
+                    self.dialog.after(0, lambda: self.progress_var.set("Download cancelled"))
+                    break
+
+                # Update status
+                self.dialog.after(0, lambda m=model_name, i=idx + 1, t=total_models:
+                                  self.progress_var.set(f"Downloading {m} ({i}/{t})..."))
+
+                # Download model
+                try:
+                    transcriber = FileTranscriber(model_size=model_name)
+                    transcriber.load_model()
+
+                    # Update progress
+                    progress = int((idx + 1) / total_models * 100)
+                    self.dialog.after(0, lambda p=progress: self.progress_bar.config(value=p))
+
+                except Exception as e:
+                    self.dialog.after(0, lambda m=model_name, err=str(e):
+                                      messagebox.showerror("Download Error",
+                                                           f"Failed to download {m}:\n{err}"))
+                    continue
+
+            # Download complete
+            if not self.download_cancelled:
+                self.dialog.after(0, lambda: self.progress_var.set("✓ Download complete!"))
+                self.dialog.after(0, lambda: self.progress_bar.config(value=100))
+                self.dialog.after(0, lambda: messagebox.showinfo("Success",
+                                                                  "Models downloaded successfully!\n\nYou can now transcribe audio files."))
+                self.dialog.after(500, self.dialog.destroy)
+            else:
+                self.dialog.after(0, lambda: self.download_btn.config(state=NORMAL))
+
+        except Exception as e:
+            self.dialog.after(0, lambda err=str(e): messagebox.showerror("Error", f"Download failed:\n{err}"))
+            self.dialog.after(0, lambda: self.download_btn.config(state=NORMAL))
+
+        finally:
+            self.is_downloading = False
+
+    def cancel_download(self):
+        """Cancel the download."""
+        if self.is_downloading:
+            self.download_cancelled = True
+            self.progress_var.set("Cancelling...")
+        else:
+            self.dialog.destroy()
 
 
 class FileTranscriberWindow:
@@ -48,6 +273,9 @@ class FileTranscriberWindow:
 
         # Check Ollama availability after UI is setup
         self.check_ollama_availability()
+
+        # Check if current model is installed
+        self.update_model_warning_banner()
 
         # Handle window close
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -160,6 +388,36 @@ class FileTranscriberWindow:
             bootstyle="secondary"
         ).grid(row=3, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
 
+        # Info banner for missing models (initially hidden)
+        self.info_banner = ttk.Frame(main_frame, bootstyle="info", padding=10)
+        self.info_banner.grid(row=4, column=0, columnspan=3, sticky=(W, E), pady=(15, 10))
+        self.info_banner.grid_remove()  # Hidden by default
+
+        self.info_banner.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            self.info_banner,
+            text="ℹ️",
+            font=('Segoe UI', 16),
+            bootstyle="info"
+        ).grid(row=0, column=0, padx=(0, 10))
+
+        self.info_label = ttk.Label(
+            self.info_banner,
+            text="Model not yet installed. Click to download and get started.",
+            font=('Segoe UI', 10),
+            bootstyle="info"
+        )
+        self.info_label.grid(row=0, column=1, sticky=W)
+
+        self.download_models_btn = ttk.Button(
+            self.info_banner,
+            text="📥 Download Models",
+            command=self.open_model_download_dialog,
+            bootstyle="primary"
+        )
+        self.download_models_btn.grid(row=0, column=2, padx=(10, 0))
+
         # Transcribe button
         self.transcribe_btn = ttk.Button(
             main_frame,
@@ -169,7 +427,7 @@ class FileTranscriberWindow:
             state=DISABLED,
             width=20
         )
-        self.transcribe_btn.grid(row=4, column=0, columnspan=3, pady=(15, 10))
+        self.transcribe_btn.grid(row=5, column=0, columnspan=3, pady=(15, 10))
 
         # Progress section
         self.progress_var = ttk.StringVar(value="Ready to transcribe")
@@ -179,7 +437,7 @@ class FileTranscriberWindow:
             font=('Segoe UI', 10),
             bootstyle="info"
         )
-        progress_label.grid(row=5, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
+        progress_label.grid(row=6, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
 
         self.progress_bar = ttk.Progressbar(
             main_frame,
@@ -187,11 +445,11 @@ class FileTranscriberWindow:
             maximum=100,
             bootstyle="success-striped"
         )
-        self.progress_bar.grid(row=6, column=0, columnspan=3, sticky=(W, E), pady=(0, 15))
+        self.progress_bar.grid(row=7, column=0, columnspan=3, sticky=(W, E), pady=(0, 15))
 
         # Summary section
         summary_header_frame = ttk.Frame(main_frame)
-        summary_header_frame.grid(row=7, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
+        summary_header_frame.grid(row=8, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
 
         ttk.Label(summary_header_frame, text="Summary:", font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
 
@@ -216,7 +474,7 @@ class FileTranscriberWindow:
 
         # Frame for summary text area
         summary_frame = ttk.Frame(main_frame)
-        summary_frame.grid(row=8, column=0, columnspan=3, sticky=(W, E), pady=(5, 10))
+        summary_frame.grid(row=9, column=0, columnspan=3, sticky=(W, E), pady=(5, 10))
         summary_frame.columnconfigure(0, weight=1)
 
         # Placeholder label (shown when no summary yet)
@@ -240,15 +498,15 @@ class FileTranscriberWindow:
 
         # Transcription text area
         ttk.Label(main_frame, text="Transcription:", font=('Segoe UI', 11, 'bold')).grid(
-            row=9, column=0, columnspan=3, sticky=W, pady=(10, 5)
+            row=10, column=0, columnspan=3, sticky=W, pady=(10, 5)
         )
 
         # Frame for text area with scrollbar
         text_frame = ttk.Frame(main_frame)
-        text_frame.grid(row=10, column=0, columnspan=3, sticky=(W, E, N, S), pady=(0, 10))
+        text_frame.grid(row=11, column=0, columnspan=3, sticky=(W, E, N, S), pady=(0, 10))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
-        main_frame.rowconfigure(10, weight=1)
+        main_frame.rowconfigure(11, weight=1)
 
         self.transcription_text = scrolledtext.ScrolledText(
             text_frame,
@@ -261,7 +519,7 @@ class FileTranscriberWindow:
 
         # Buttons section
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=11, column=0, columnspan=3, pady=(10, 0))
+        button_frame.grid(row=12, column=0, columnspan=3, pady=(10, 0))
 
         self.save_summary_btn = ttk.Button(
             button_frame,
@@ -338,6 +596,9 @@ class FileTranscriberWindow:
         model_size = self.model_var.get()
         self.status_var.set(f"Model changed to: {model_size}")
         self.logger.info(f"Model changed to: {model_size}")
+
+        # Check if new model is installed
+        self.update_model_warning_banner()
 
         # If transcriber exists, switch model
         if self.transcriber is not None:
@@ -495,6 +756,29 @@ class FileTranscriberWindow:
             self.generate_summary_btn.config(state=DISABLED)
             self.logger.warning(f"Ollama not available: {message}")
             self.status_var.set(f"Ollama not available - {message}")
+
+    def update_model_warning_banner(self):
+        """Check if current model is installed and show/hide info banner."""
+        model_size = self.model_var.get()
+        model_installed = check_model_exists(model_size)
+
+        if model_installed:
+            # Model is installed - hide info banner
+            self.info_banner.grid_remove()
+            self.logger.info(f"Model {model_size} is installed")
+        else:
+            # Model not installed - show info banner
+            self.info_banner.grid()
+            self.info_label.config(text=f"{model_size.capitalize()} model not yet installed. Click to download and get started.")
+            self.logger.info(f"Model {model_size} is not installed")
+
+    def open_model_download_dialog(self):
+        """Open the model download dialog."""
+        dialog = ModelDownloadDialog(self.window)
+        # Wait for dialog to close, then refresh model check
+        self.window.wait_window(dialog.dialog)
+        # Update banner after download completes
+        self.update_model_warning_banner()
 
     def generate_summary(self):
         """Generate summary using Ollama."""

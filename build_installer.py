@@ -29,7 +29,7 @@ def build_systray_app():
     command = [
         'pyinstaller',
         '--name=WhisperDictation',
-        '--onefile',
+        '--onedir',  # Directory mode for faster startup
         '--windowed',  # No console window
         '--icon=NONE',  # Add your own icon file here if available
         '--add-data=run_systray.vbs;.',  # Include the VBS launcher
@@ -41,8 +41,24 @@ def build_systray_app():
         '--hidden-import=pyperclip',
         '--hidden-import=keyboard',
         '--hidden-import=numpy',
-        '--collect-all=faster_whisper',
-        '--collect-all=ctranslate2',
+        # Collect only essential data files for VAD (Voice Activity Detection)
+        '--collect-data=faster_whisper',
+        # Exclude Qt packages (not needed for systray app)
+        '--exclude-module=PyQt5',
+        '--exclude-module=PyQt6',
+        '--exclude-module=PySide2',
+        '--exclude-module=PySide6',
+        # Exclude massive unnecessary packages that slow down startup
+        '--exclude-module=matplotlib',
+        '--exclude-module=IPython',
+        '--exclude-module=jupyter',
+        '--exclude-module=notebook',
+        '--exclude-module=transformers',
+        '--exclude-module=tensorflow',
+        '--exclude-module=torch',
+        '--exclude-module=torchaudio',
+        '--exclude-module=sklearn',
+        '--exclude-module=pandas',
         'systray_dictation.py'
     ]
 
@@ -66,8 +82,8 @@ def build_file_transcriber():
     command = [
         'pyinstaller',
         '--name=FileTranscriber',
-        '--onefile',
-        '--windowed',  # No console window
+        '--onedir',  # Directory mode for faster startup
+        '--windowed',  # No console window (clean for end users)
         '--icon=NONE',  # Add your own icon file here if available
         '--hidden-import=faster_whisper',
         '--hidden-import=ctranslate2',
@@ -78,11 +94,27 @@ def build_file_transcriber():
         '--hidden-import=av',
         '--hidden-import=ttkbootstrap',
         '--hidden-import=requests',
-        '--collect-all=faster_whisper',
-        '--collect-all=ctranslate2',
-        '--collect-all=soundfile',
-        '--collect-all=av',
-        '--collect-all=ttkbootstrap',
+        # Collect only essential data files for VAD (Voice Activity Detection)
+        '--collect-data=faster_whisper',
+        '--collect-all=soundfile',  # Keep for audio file support
+        '--collect-all=av',  # Keep for M4A/MP3 support
+        '--collect-all=ttkbootstrap',  # Keep for UI themes
+        # Exclude Qt packages (uses tkinter/ttkbootstrap instead)
+        '--exclude-module=PyQt5',
+        '--exclude-module=PyQt6',
+        '--exclude-module=PySide2',
+        '--exclude-module=PySide6',
+        # Exclude massive unnecessary packages that slow down startup
+        '--exclude-module=matplotlib',
+        '--exclude-module=IPython',
+        '--exclude-module=jupyter',
+        '--exclude-module=notebook',
+        '--exclude-module=transformers',
+        '--exclude-module=tensorflow',
+        '--exclude-module=torch',
+        '--exclude-module=torchaudio',
+        '--exclude-module=sklearn',
+        '--exclude-module=pandas',
         'file_transcriber_ui.py'
     ]
 
@@ -138,29 +170,45 @@ def create_dist_package():
     package_dir = os.path.join('dist', 'DictationApp')
     os.makedirs(package_dir, exist_ok=True)
 
-    # Copy executables
-    files_to_copy = [
-        ('dist/WhisperDictation.exe', package_dir),
-        ('dist/FileTranscriber.exe', package_dir),
+    # Copy WhisperDictation directory (--onedir creates a folder)
+    whisper_src = 'dist/WhisperDictation'
+    if os.path.exists(whisper_src):
+        whisper_dst = os.path.join(package_dir, 'WhisperDictation')
+        if os.path.exists(whisper_dst):
+            shutil.rmtree(whisper_dst)
+        shutil.copytree(whisper_src, whisper_dst)
+        print(f"✓ Copied WhisperDictation/")
+    else:
+        print(f"⚠️  WhisperDictation folder not found")
+
+    # Copy FileTranscriber directory (--onedir creates a folder)
+    transcriber_src = 'dist/FileTranscriber'
+    if os.path.exists(transcriber_src):
+        transcriber_dst = os.path.join(package_dir, 'FileTranscriber')
+        if os.path.exists(transcriber_dst):
+            shutil.rmtree(transcriber_dst)
+        shutil.copytree(transcriber_src, transcriber_dst)
+        print(f"✓ Copied FileTranscriber/")
+    else:
+        print(f"⚠️  FileTranscriber folder not found")
+
+    # Copy support files
+    support_files = [
         ('run_systray.vbs', package_dir),
         ('README.md', package_dir),
     ]
 
-    for src, dst in files_to_copy:
+    for src, dst in support_files:
         if os.path.exists(src):
-            if os.path.isfile(src):
-                shutil.copy2(src, dst)
-                print(f"✓ Copied {os.path.basename(src)}")
-            else:
-                shutil.copytree(src, os.path.join(dst, os.path.basename(src)))
-                print(f"✓ Copied {os.path.basename(src)}/")
+            shutil.copy2(src, dst)
+            print(f"✓ Copied {os.path.basename(src)}")
         else:
             print(f"⚠️  File not found: {src}")
 
     # Create a simple batch file to run the systray app
     batch_content = '''@echo off
 echo Starting Whisper Dictation...
-start "" "WhisperDictation.exe"
+start "" "WhisperDictation\\WhisperDictation.exe"
 '''
     batch_path = os.path.join(package_dir, 'Start_Dictation.bat')
     with open(batch_path, 'w') as f:
@@ -231,6 +279,17 @@ def main():
         print("❌ PyInstaller not found!")
         print("Install it with: pip install pyinstaller")
         sys.exit(1)
+
+    # Check if models directory exists
+    if os.path.exists('models'):
+        print("✓ Whisper models found - will be bundled with executables")
+        # Count models
+        model_count = len([d for d in os.listdir('models') if os.path.isdir(os.path.join('models', d))])
+        print(f"  {model_count} model(s) will be included\n")
+    else:
+        print("⚠️  No models directory found")
+        print("  Models will NOT be bundled - apps will download on first use")
+        print("  To bundle models: run 'python download_models.py' first\n")
 
     # Clean previous builds
     clean_build_folders()

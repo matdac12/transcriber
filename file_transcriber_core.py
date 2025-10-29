@@ -5,9 +5,43 @@ Handles loading, format conversion, chunking, and transcription of audio files.
 
 import numpy as np
 import os
+import sys
 import logging
 from typing import Callable, Optional, Tuple, List
 from faster_whisper import WhisperModel
+
+
+def get_models_path():
+    """
+    Get path to Whisper models.
+
+    Checks in order:
+    1. Installation directory (C:\\Program Files\\WhisperDictation\\models\\)
+    2. HuggingFace cache (%USERPROFILE%\\.cache\\huggingface\\hub\\)
+
+    Returns:
+        Path to models directory if found, None otherwise
+    """
+    # Check installation directory (when running as installed app)
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle
+        # Get the directory where the .exe is located
+        exe_dir = os.path.dirname(sys.executable)
+
+        # Check for models in parent directory (installation root)
+        install_root = os.path.dirname(exe_dir)  # Go up one level
+        models_dir = os.path.join(install_root, 'models')
+
+        if os.path.exists(models_dir):
+            return models_dir
+
+    # Check HuggingFace cache as fallback
+    user_home = os.path.expanduser("~")
+    hf_cache = os.path.join(user_home, '.cache', 'huggingface', 'hub')
+    if os.path.exists(hf_cache):
+        return hf_cache
+
+    return None
 
 
 class FileTranscriber:
@@ -32,11 +66,27 @@ class FileTranscriber:
         """Load the Whisper model."""
         try:
             self.logger.info(f"Loading Whisper model: {self.model_size}")
-            self.model = WhisperModel(
-                self.model_size,
-                device=self.device,
-                compute_type=self.compute_type
-            )
+
+            # Check for models in installation directory or cache
+            models_path = get_models_path()
+
+            if models_path:
+                # Use models from installation or cache
+                self.logger.info(f"Using models from: {models_path}")
+                self.model = WhisperModel(
+                    self.model_size,
+                    device=self.device,
+                    compute_type=self.compute_type,
+                    download_root=models_path
+                )
+            else:
+                # Use default HuggingFace cache
+                self.model = WhisperModel(
+                    self.model_size,
+                    device=self.device,
+                    compute_type=self.compute_type
+                )
+
             self.logger.info("Model loaded successfully")
         except Exception as e:
             self.logger.error(f"Error loading model: {e}")
@@ -365,3 +415,59 @@ def format_file_duration(seconds: float) -> str:
     parts.append(f"{secs}s")
 
     return " ".join(parts)
+
+
+def check_model_exists(model_size: str) -> bool:
+    """
+    Check if a Whisper model is already downloaded.
+
+    Args:
+        model_size: Model size to check (tiny, base, small, medium, large)
+
+    Returns:
+        True if model exists locally, False otherwise
+    """
+    models_path = get_models_path()
+
+    if models_path is None:
+        return False
+
+    # Check for faster-whisper model directory structure
+    # Models are stored as "faster-whisper-{model_size}" or "models--Systran--faster-whisper-{model_size}"
+    model_dir_name = f"faster-whisper-{model_size}"
+    model_dir = os.path.join(models_path, model_dir_name)
+
+    # Check direct model directory
+    if os.path.exists(model_dir) and os.path.isdir(model_dir):
+        # Verify it contains model files
+        model_files = os.listdir(model_dir)
+        if len(model_files) > 0:
+            return True
+
+    # Also check HuggingFace hub format (models--Systran--faster-whisper-*)
+    if os.path.exists(models_path):
+        for item in os.listdir(models_path):
+            if f"faster-whisper-{model_size}" in item and os.path.isdir(os.path.join(models_path, item)):
+                return True
+
+    return False
+
+
+def get_model_download_size(model_size: str) -> int:
+    """
+    Get approximate download size for a Whisper model in bytes.
+
+    Args:
+        model_size: Model size (tiny, base, small, medium, large)
+
+    Returns:
+        Approximate size in bytes
+    """
+    sizes = {
+        'tiny': 39 * 1024 * 1024,      # ~39 MB
+        'base': 141 * 1024 * 1024,     # ~141 MB
+        'small': 461 * 1024 * 1024,    # ~461 MB
+        'medium': 1500 * 1024 * 1024,  # ~1.5 GB
+        'large': 3000 * 1024 * 1024    # ~3 GB
+    }
+    return sizes.get(model_size, 0)

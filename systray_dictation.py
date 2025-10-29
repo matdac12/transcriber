@@ -24,6 +24,46 @@ if sys.platform == "win32":
 # Toast notifications removed - using icon color feedback instead
 
 
+def get_models_path():
+    """
+    Get path to Whisper models.
+
+    Checks in order:
+    1. Installation directory (C:\\Program Files\\WhisperDictation\\models\\)
+    2. HuggingFace cache (%USERPROFILE%\\.cache\\huggingface\\hub\\)
+
+    Returns:
+        Path to models directory if found, None otherwise
+    """
+    # Check installation directory (when running as installed app)
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle
+        # Get the directory where the .exe is located
+        if hasattr(sys, '_MEIPASS'):
+            # --onedir mode: exe is in WhisperDictation/ folder
+            exe_dir = os.path.dirname(sys.executable)
+        else:
+            exe_dir = os.path.dirname(sys.executable)
+
+        # Check for models in parent directory (installation root)
+        install_root = os.path.dirname(exe_dir)  # Go up one level
+        models_dir = os.path.join(install_root, 'models')
+
+        if os.path.exists(models_dir):
+            print(f"Using models from installation directory: {models_dir}")
+            return models_dir
+
+    # Check HuggingFace cache as fallback
+    user_home = os.path.expanduser("~")
+    hf_cache = os.path.join(user_home, '.cache', 'huggingface', 'hub')
+    if os.path.exists(hf_cache):
+        print(f"Using models from HuggingFace cache: {hf_cache}")
+        return hf_cache
+
+    print("No model directory found - models will be downloaded on first use")
+    return None
+
+
 class WhisperDictation:
     def __init__(self, model_size="base"):
         """Initialize the dictation system with a Whisper model."""
@@ -40,8 +80,7 @@ class WhisperDictation:
         self.model_size = model_size  # Track current model size
         self.device = "auto"
         self.compute_type = "int8"  # int8 for CPU compatibility
-
-        self.load_model(model_size)
+        self.model = None  # Lazy loading - load on first transcription
 
         # Log file setup - use AppData for user-writable location
         log_dir = os.getenv("LOCALAPPDATA") or os.path.expanduser("~")
@@ -55,9 +94,23 @@ class WhisperDictation:
         print("CTranslate2 will auto-detect best device (GPU if available, else CPU)")
 
         try:
-            self.model = WhisperModel(
-                model_size, device=self.device, compute_type=self.compute_type
-            )
+            # Check for models in installation directory or cache
+            models_path = get_models_path()
+
+            if models_path:
+                # Use models from installation or cache
+                self.model = WhisperModel(
+                    model_size,
+                    device=self.device,
+                    compute_type=self.compute_type,
+                    download_root=models_path
+                )
+            else:
+                # Use default HuggingFace cache
+                self.model = WhisperModel(
+                    model_size, device=self.device, compute_type=self.compute_type
+                )
+
             self.model_size = model_size
             if self.debug:
                 print(
@@ -258,6 +311,11 @@ class WhisperDictation:
             print("❌ No audio recorded.")
             return
 
+        # Lazy load model on first transcription
+        if self.model is None:
+            print("Loading Whisper model (first time only)...")
+            self.load_model(self.model_size)
+
         if self.debug:
             print(f"[DEBUG] Combining {len(self.audio_data)} audio chunks...")
 
@@ -409,20 +467,36 @@ def main():
     def on_open_file_transcriber(icon, item):
         """Open the file transcriber window."""
         try:
-            # Get the path to the file transcriber script
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            transcriber_script = os.path.join(script_dir, "file_transcriber_ui.py")
+            # Check if running as PyInstaller bundle
+            if getattr(sys, 'frozen', False):
+                # Running as installed app
+                # Get exe directory (e.g., C:\Program Files\WhisperDictation\WhisperDictation\)
+                exe_dir = os.path.dirname(sys.executable)
+                # Go up one level to installation root
+                install_root = os.path.dirname(exe_dir)
+                # Path to FileTranscriber exe
+                transcriber_exe = os.path.join(install_root, 'FileTranscriber', 'FileTranscriber.exe')
 
-            # Launch the file transcriber in a separate process
-            if sys.platform == "win32":
-                # On Windows, use pythonw to avoid showing console
-                python_exe = sys.executable.replace("python.exe", "pythonw.exe")
-                subprocess.Popen([python_exe, transcriber_script])
+                if os.path.exists(transcriber_exe):
+                    subprocess.Popen([transcriber_exe])
+                    print(f"✓ Launched FileTranscriber from: {transcriber_exe}")
+                else:
+                    print(f"❌ FileTranscriber.exe not found at: {transcriber_exe}")
             else:
-                # On other platforms, use regular python
-                subprocess.Popen([sys.executable, transcriber_script])
+                # Running as Python script (development mode)
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                transcriber_script = os.path.join(script_dir, "file_transcriber_ui.py")
 
-            print("✓ File transcriber window opened")
+                # Launch the file transcriber in a separate process
+                if sys.platform == "win32":
+                    # On Windows, use pythonw to avoid showing console
+                    python_exe = sys.executable.replace("python.exe", "pythonw.exe")
+                    subprocess.Popen([python_exe, transcriber_script])
+                else:
+                    # On other platforms, use regular python
+                    subprocess.Popen([sys.executable, transcriber_script])
+
+                print("✓ File transcriber window opened")
         except Exception as e:
             print(f"❌ Error opening file transcriber: {e}")
 

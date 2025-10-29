@@ -73,13 +73,31 @@ class OllamaHelper:
             If success=False, result is the error message
         """
         try:
-            # Check if available first
+            # Check if Ollama is running
+            try:
+                response = requests.get(f"{self.base_url}/api/tags", timeout=2)
+                if response.status_code != 200:
+                    return False, "Ollama is not running. Start it with: ollama serve"
+            except requests.exceptions.ConnectionError:
+                return False, "Ollama is not running. Start it with: ollama serve"
+            except requests.exceptions.Timeout:
+                return False, "Ollama connection timeout"
+
+            # Check if model is available
             is_available, message = self.is_available()
-            if not is_available:
-                return False, message
 
             if progress_callback:
-                progress_callback("Sending request to Ollama...")
+                if not is_available:
+                    # Model not available - will auto-download on first use
+                    model_sizes = {
+                        'llama3.2:3b': '~2 GB',
+                        'llama3.1:8b': '~4.7 GB',
+                        'deepseek-r1:1.5b': '~1 GB'
+                    }
+                    size_info = model_sizes.get(self.model, '~2-5 GB')
+                    progress_callback(f"⬇️ Downloading {self.model} model ({size_info}, first time only)...")
+                else:
+                    progress_callback("Sending request to Ollama...")
 
             # Prepare the prompt
             prompt = f"""Fornisci un riassunto conciso della seguente trascrizione. Concentrati sui punti principali e le informazioni chiave:

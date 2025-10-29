@@ -50,3 +50,20 @@ Thumbs.db
 
 # Whisper models cache (optional - comment out if you want to commit)
 # ~/.cache/
+
+# PyInstaller
+*.spec
+build/
+dist/
+
+# Installer output
+installer_output/
+installer_resources/OllamaSetup.exe
+installer_resources/*.exe
+
+# Downloaded models (too large for git)
+models/
+
+# Screenshots and temp files
+*.png
+nul

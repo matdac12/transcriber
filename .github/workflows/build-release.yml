@@ -1,0 +1,145 @@
+name: Build and Release Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller==6.3.0
+          pip install faster-whisper soundfile scipy av ttkbootstrap requests
+          pip install pystray pillow sounddevice pyperclip keyboard numpy
+
+      - name: Create installer resources directory
+        run: mkdir -p installer_resources
+        shell: bash
+
+      - name: Download Ollama installer
+        run: |
+          echo "Downloading Ollama installer..."
+          curl -L -o installer_resources/OllamaSetup.exe https://ollama.com/download/OllamaSetup.exe
+          echo "Ollama installer downloaded"
+        shell: bash
+
+      - name: Create Ollama model installation script
+        run: |
+          python -c "
+          script_content = '''#!/usr/bin/env python3
+          \"\"\"
+          Script to pull Ollama models during installation.
+          Called by Inno Setup installer.
+          \"\"\"
+          import subprocess
+          import sys
+
+          def main():
+              model = \"deepseek-r1:1.5b\"
+              print(f\"Pulling Ollama model: {model}\")
+
+              try:
+                  result = subprocess.run(
+                      [\"ollama\", \"pull\", model],
+                      capture_output=True,
+                      text=True,
+                      timeout=300
+                  )
+
+                  if result.returncode == 0:
+                      print(f\"Successfully pulled {model}\")
+                      return 0
+                  else:
+                      print(f\"Failed to pull {model}: {result.stderr}\")
+                      return 1
+              except subprocess.TimeoutExpired:
+                  print(\"Timeout while pulling model\")
+                  return 1
+              except Exception as e:
+                  print(f\"Error: {e}\")
+                  return 1
+
+          if __name__ == \"__main__\":
+              sys.exit(main())
+          '''
+          with open('installer_resources/install_ollama_models.py', 'w') as f:
+              f.write(script_content)
+          "
+        shell: bash
+
+      - name: Build executables with PyInstaller
+        run: python build_installer.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Compile installer with Inno Setup
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: installer_output/WhisperDictation_Setup.exe
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Whisper Dettatura e Trascrittore File ${{ steps.get_version.outputs.VERSION }}
+
+            ### 📥 Download
+            Scarica e installa **WhisperDictation_Setup.exe** per Windows.
+
+            ### ✨ Caratteristiche
+            - 🎤 **Dettatura vocale in tempo reale** - Premi Alt Gr per dettare
+            - 📄 **Trascrizione file audio** - Supporta M4A, MP3, WAV, AAC, FLAC, OGG
+            - 🤖 **Riassunti AI** - Generazione automatica riassunti con Ollama
+            - 🇮🇹 **Completamente in italiano** - Interfaccia e riconoscimento vocale
+
+            ### 📋 Note di installazione
+            - I modelli AI Whisper (~150MB) verranno scaricati automaticamente al primo utilizzo
+            - Ollama (opzionale) può essere installato durante il setup per i riassunti AI
+            - Connessione internet richiesta al primo avvio
+            - Windows 10/11 64-bit richiesto
+
+            ### 🚀 Avvio rapido
+            1. Scarica `WhisperDictation_Setup.exe`
+            2. Esegui l'installer (richiede privilegi amministratore)
+            3. Avvia "Whisper Dettatura" dal menu Start o dall'icona sul desktop
+            4. Premi e tieni premuto **Alt Gr** per registrare la tua voce
+            5. Rilascia per trascrivere e incollare automaticamente
+
+            ---
+
+            🤖 Build automatica generata da GitHub Actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: build-artifacts
+          path: |
+            dist/
+            installer_output/
+          retention-days: 7

@@ -246,7 +246,7 @@ class FileTranscriberWindow:
     def __init__(self, theme="darkly"):
         """Initialize the file transcriber window."""
         self.window = ttk.Window(themename=theme)
-        self.window.title("Audio File Transcriber - Whisper")
+        self.window.title("Trascrittore File Audio - Whisper")
         self.window.geometry("850x650")
         self.window.minsize(700, 500)
 
@@ -293,11 +293,11 @@ class FileTranscriberWindow:
         main_frame.rowconfigure(10, weight=1)  # Transcription text area row gets extra space
 
         # File selection section
-        ttk.Label(main_frame, text="Audio File:", font=('Segoe UI', 11, 'bold')).grid(
+        ttk.Label(main_frame, text="File Audio:", font=('Segoe UI', 11, 'bold')).grid(
             row=0, column=0, sticky=W, pady=(0, 10)
         )
 
-        self.file_path_var = ttk.StringVar(value="No file selected")
+        self.file_path_var = ttk.StringVar(value="Nessun file selezionato")
         file_path_label = ttk.Label(
             main_frame,
             textvariable=self.file_path_var,
@@ -308,14 +308,14 @@ class FileTranscriberWindow:
 
         self.select_file_btn = ttk.Button(
             main_frame,
-            text="Browse...",
+            text="Sfoglia...",
             command=self.select_file,
             bootstyle="primary"
         )
         self.select_file_btn.grid(row=0, column=2, padx=(0, 0), pady=(0, 10))
 
         # Model selection section
-        ttk.Label(main_frame, text="Model:", font=('Segoe UI', 11, 'bold')).grid(
+        ttk.Label(main_frame, text="Modello:", font=('Segoe UI', 11, 'bold')).grid(
             row=1, column=0, sticky=W, pady=(5, 10)
         )
 
@@ -332,13 +332,13 @@ class FileTranscriberWindow:
 
         ttk.Label(
             main_frame,
-            text="(larger = more accurate but slower)",
+            text="(più grande = più preciso ma più lento)",
             font=('Segoe UI', 9),
             bootstyle="secondary"
         ).grid(row=1, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
 
         # Theme selection section
-        ttk.Label(main_frame, text="Theme:", font=('Segoe UI', 11, 'bold')).grid(
+        ttk.Label(main_frame, text="Tema:", font=('Segoe UI', 11, 'bold')).grid(
             row=2, column=0, sticky=W, pady=(5, 10)
         )
 
@@ -359,13 +359,13 @@ class FileTranscriberWindow:
 
         ttk.Label(
             main_frame,
-            text="(change appearance instantly)",
+            text="(cambia aspetto istantaneamente)",
             font=('Segoe UI', 9),
             bootstyle="secondary"
         ).grid(row=2, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
 
         # Ollama model selection section
-        ttk.Label(main_frame, text="Ollama Model:", font=('Segoe UI', 11, 'bold')).grid(
+        ttk.Label(main_frame, text="Modello Ollama:", font=('Segoe UI', 11, 'bold')).grid(
             row=3, column=0, sticky=W, pady=(5, 10)
         )
 
@@ -383,7 +383,7 @@ class FileTranscriberWindow:
 
         ttk.Label(
             main_frame,
-            text="(for summary generation)",
+            text="(per generazione riassunto)",
             font=('Segoe UI', 9),
             bootstyle="secondary"
         ).grid(row=3, column=2, sticky=W, padx=(15, 0), pady=(5, 10))
@@ -404,7 +404,7 @@ class FileTranscriberWindow:
 
         self.info_label = ttk.Label(
             self.info_banner,
-            text="Model not yet installed. Click to download and get started.",
+            text="Modello non ancora installato. Clicca per scaricare e iniziare.",
             font=('Segoe UI', 10),
             bootstyle="info"
         )
@@ -412,7 +412,7 @@ class FileTranscriberWindow:
 
         self.download_models_btn = ttk.Button(
             self.info_banner,
-            text="📥 Download Models",
+            text="📥 Scarica Modelli",
             command=self.open_model_download_dialog,
             bootstyle="primary"
         )
@@ -421,7 +421,7 @@ class FileTranscriberWindow:
         # Transcribe button
         self.transcribe_btn = ttk.Button(
             main_frame,
-            text="▶ Transcribe",
+            text="▶ Trascrivi",
             command=self.start_transcription,
             bootstyle="success",
             state=DISABLED,
@@ -430,7 +430,7 @@ class FileTranscriberWindow:
         self.transcribe_btn.grid(row=5, column=0, columnspan=3, pady=(15, 10))
 
         # Progress section
-        self.progress_var = ttk.StringVar(value="Ready to transcribe")
+        self.progress_var = ttk.StringVar(value="Pronto per trascrivere")
         progress_label = ttk.Label(
             main_frame,
             textvariable=self.progress_var,
@@ -451,11 +451,11 @@ class FileTranscriberWindow:
         summary_header_frame = ttk.Frame(main_frame)
         summary_header_frame.grid(row=8, column=0, columnspan=3, sticky=(W, E), pady=(10, 5))
 
-        ttk.Label(summary_header_frame, text="Summary:", font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+        ttk.Label(summary_header_frame, text="Riassunto:", font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
 
         self.generate_summary_btn = ttk.Button(
             summary_header_frame,
-            text="🤖 Generate Summary",
+            text="🤖 Genera Riassunto",
             command=self.generate_summary,
             bootstyle="info-outline",
             state=DISABLED,
@@ -480,7 +480,7 @@ class FileTranscriberWindow:
         # Placeholder label (shown when no summary yet)
         self.summary_placeholder = ttk.Label(
             summary_frame,
-            text="Summary will appear here after generation...",
+            text="Il riassunto apparirà qui dopo la generazione...",
             font=('Segoe UI', 10, 'italic'),
             bootstyle="secondary"
         )
@@ -497,7 +497,7 @@ class FileTranscriberWindow:
         self.summary_text.grid_remove()  # Hide initially
 
         # Transcription text area
-        ttk.Label(main_frame, text="Transcription:", font=('Segoe UI', 11, 'bold')).grid(
+        ttk.Label(main_frame, text="Trascrizione:", font=('Segoe UI', 11, 'bold')).grid(
             row=10, column=0, columnspan=3, sticky=W, pady=(10, 5)
         )
 
@@ -523,7 +523,7 @@ class FileTranscriberWindow:
 
         self.save_summary_btn = ttk.Button(
             button_frame,
-            text="💾 Save Summary",
+            text="💾 Salva Riassunto",
             command=self.save_summary_only,
             bootstyle="info-outline",
             state=DISABLED,
@@ -533,7 +533,7 @@ class FileTranscriberWindow:
 
         self.save_transcription_btn = ttk.Button(
             button_frame,
-            text="💾 Save Transcription",
+            text="💾 Salva Trascrizione",
             command=self.save_transcription_only,
             bootstyle="primary-outline",
             state=DISABLED,
@@ -543,7 +543,7 @@ class FileTranscriberWindow:
 
         self.save_both_btn = ttk.Button(
             button_frame,
-            text="💾 Save Both",
+            text="💾 Salva Entrambi",
             command=self.save_both,
             bootstyle="success-outline",
             state=DISABLED,
@@ -553,7 +553,7 @@ class FileTranscriberWindow:
 
         self.clear_btn = ttk.Button(
             button_frame,
-            text="🗑️ Clear All",
+            text="🗑️ Cancella Tutto",
             command=self.clear_all,
             bootstyle="secondary-outline",
             width=15
@@ -561,7 +561,7 @@ class FileTranscriberWindow:
         self.clear_btn.pack(side=LEFT, padx=(5, 0))
 
         # Status bar at bottom
-        self.status_var = ttk.StringVar(value="Ready to transcribe audio files")
+        self.status_var = ttk.StringVar(value="Pronto per trascrivere file audio")
         status_bar = ttk.Label(
             self.window,
             textvariable=self.status_var,

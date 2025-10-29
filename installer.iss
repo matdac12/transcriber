@@ -6,7 +6,7 @@
 ; 2. Run build_installer.py first to create the executables
 ; 3. Right-click this file and select "Compile" to build the installer
 
-#define MyAppName "Whisper Dictation & File Transcriber"
+#define MyAppName "Whisper Dettatura e Trascrittore File"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Your Name"
 #define MyAppURL "https://github.com/yourusername/dictation-app"
@@ -51,11 +51,11 @@ DisableReadyPage=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create desktop shortcut for Whisper Dictation (Systray)"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "desktopicon_transcriber"; Description: "Create desktop shortcut for File Transcriber"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Check: not IsAdminInstallMode
-Name: "startup"; Description: "Start Whisper Dictation automatically when Windows starts"; GroupDescription: "Auto-start:"; Flags: unchecked
-Name: "installollama"; Description: "Install Ollama for AI-powered summary generation (recommended, ~300MB download)"; GroupDescription: "AI Features:"
+Name: "desktopicon"; Description: "Crea collegamento desktop per Whisper Dettatura (Systray)"; GroupDescription: "Icone aggiuntive:"; Flags: unchecked
+Name: "desktopicon_transcriber"; Description: "Crea collegamento desktop per Trascrittore File"; GroupDescription: "Icone aggiuntive:"; Flags: unchecked
+Name: "quicklaunchicon"; Description: "Crea icona Avvio Veloce"; GroupDescription: "Icone aggiuntive:"; Flags: unchecked; Check: not IsAdminInstallMode
+Name: "startup"; Description: "Avvia Whisper Dettatura automaticamente all'avvio di Windows"; GroupDescription: "Avvio automatico:"; Flags: unchecked
+Name: "installollama"; Description: "Installa Ollama per generazione riassunti AI (consigliato, ~300MB download)"; GroupDescription: "Funzionalità AI:"
 
 [Files]
 ; Main executables (--onedir mode: entire folders)
@@ -76,20 +76,20 @@ Source: "{#OllamaModelScript}"; DestDir: "{tmp}"; Flags: deleteafterinstall; Tas
 
 [Icons]
 ; Start Menu shortcuts
-Name: "{group}\Whisper Dictation (Systray)"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"
-Name: "{group}\File Transcriber"; Filename: "{app}\FileTranscriber\{#MyAppTranscriberName}"
-Name: "{group}\Quick Start Guide"; Filename: "{app}\QUICKSTART.txt"
+Name: "{group}\Whisper Dettatura (Systray)"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"
+Name: "{group}\Trascrittore File"; Filename: "{app}\FileTranscriber\{#MyAppTranscriberName}"
+Name: "{group}\Guida Rapida"; Filename: "{app}\QUICKSTART.txt"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 ; Desktop shortcuts (optional)
-Name: "{autodesktop}\Whisper Dictation"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{autodesktop}\File Transcriber"; Filename: "{app}\FileTranscriber\{#MyAppTranscriberName}"; Tasks: desktopicon_transcriber
+Name: "{autodesktop}\Whisper Dettatura"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\Trascrittore File"; Filename: "{app}\FileTranscriber\{#MyAppTranscriberName}"; Tasks: desktopicon_transcriber
 
 ; Quick Launch shortcut (optional, for older Windows)
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Whisper Dictation"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: quicklaunchicon
+Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Whisper Dettatura"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 ; Startup shortcut (optional)
-Name: "{userstartup}\Whisper Dictation"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: startup
+Name: "{userstartup}\Whisper Dettatura"; Filename: "{app}\WhisperDictation\{#MyAppExeName}"; Tasks: startup
 
 [Run]
 ; Option to launch the app after installation
@@ -220,23 +220,23 @@ begin
   if IsOllamaInstalled() then
   begin
     OllamaInstallNeeded := False;
-    OllamaMessage := 'Ollama already installed ✓';
+    OllamaMessage := 'Ollama già installato ✓';
   end
   else
   begin
     OllamaInstallNeeded := True;
-    OllamaMessage := 'Ollama will be installed';
+    OllamaMessage := 'Ollama verrà installato';
   end;
 
   // Show welcome message
-  MsgBox('Welcome to Whisper Dictation & File Transcriber Setup!'#13#10#13#10 +
-         'This application uses AI-powered speech recognition to:'#13#10 +
-         '• Convert speech to text in real-time'#13#10 +
-         '• Transcribe audio files to text'#13#10 +
-         '• Generate AI-powered summaries (with Ollama)'#13#10#13#10 +
-         'Note: AI models will download automatically when you first use the app.'#13#10 +
+  MsgBox('Benvenuto nell''installazione di Whisper Dettatura e Trascrittore File!'#13#10#13#10 +
+         'Questa applicazione usa il riconoscimento vocale AI per:'#13#10 +
+         '• Convertire voce in testo in tempo reale'#13#10 +
+         '• Trascrivere file audio in testo'#13#10 +
+         '• Generare riassunti AI (con Ollama)'#13#10#13#10 +
+         'Nota: I modelli AI verranno scaricati automaticamente al primo utilizzo.'#13#10 +
          OllamaMessage + #13#10#13#10 +
-         'Internet connection required on first use.',
+         'Connessione internet richiesta al primo utilizzo.',
          mbInformation, MB_OK);
 end;
 
@@ -268,7 +268,7 @@ begin
 
         if FileExists(OllamaSetupPath) then
         begin
-          WizardForm.StatusLabel.Caption := 'Installing Ollama...';
+          WizardForm.StatusLabel.Caption := 'Installazione Ollama in corso...';
           Log('Installing Ollama...');
 
           // Run Ollama installer silently
@@ -282,8 +282,8 @@ begin
             else
             begin
               Log('Ollama installation failed with code: ' + IntToStr(ResultCode));
-              MsgBox('Ollama installation failed. AI summaries will not be available.'#13#10 +
-                     'You can install Ollama manually from https://ollama.com',
+              MsgBox('Installazione Ollama fallita. I riassunti AI non saranno disponibili.'#13#10 +
+                     'Puoi installare Ollama manualmente da https://ollama.com',
                      mbError, MB_OK);
               WizardForm.ProgressGauge.Style := npbstNormal;
               Exit;
@@ -292,7 +292,7 @@ begin
           else
           begin
             Log('Failed to execute Ollama installer');
-            MsgBox('Could not run Ollama installer. AI summaries will not be available.',
+            MsgBox('Impossibile eseguire l''installer Ollama. I riassunti AI non saranno disponibili.',
                    mbError, MB_OK);
             WizardForm.ProgressGauge.Style := npbstNormal;
             Exit;
@@ -303,7 +303,7 @@ begin
       begin
         // Ollama already installed
         Log('Ollama already installed, skipping installation');
-        WizardForm.StatusLabel.Caption := 'Ollama already installed ✓';
+        WizardForm.StatusLabel.Caption := 'Ollama già installato ✓';
         OllamaInstalled := True;
       end;
 
@@ -314,7 +314,7 @@ begin
 
         if FileExists(OllamaScriptPath) then
         begin
-          WizardForm.StatusLabel.Caption := 'Checking Ollama models...';
+          WizardForm.StatusLabel.Caption := 'Verifica modelli Ollama in corso...';
 
           // Try to find Python
           if RegQueryStringValue(HKEY_CURRENT_USER, 'Software\Python\PythonCore\3.12\InstallPath', '', PythonExe) or
@@ -336,15 +336,15 @@ begin
             if ResultCode = 0 then
             begin
               Log('Ollama models configured successfully');
-              MsgBox('Ollama and AI models are ready!'#13#10 +
-                     'Summary generation is now available in the File Transcriber.',
+              MsgBox('Ollama e i modelli AI sono pronti!'#13#10 +
+                     'La generazione di riassunti è ora disponibile nel Trascrittore File.',
                      mbInformation, MB_OK);
             end
             else
             begin
               Log('Ollama model configuration failed with code: ' + IntToStr(ResultCode));
-              MsgBox('Ollama is installed but model setup failed.'#13#10 +
-                     'You can download models later by running:'#13#10 +
+              MsgBox('Ollama è installato ma la configurazione dei modelli è fallita.'#13#10 +
+                     'Puoi scaricare i modelli successivamente eseguendo:'#13#10 +
                      'ollama pull deepseek-r1:1.5b',
                      mbInformation, MB_OK);
             end;
@@ -352,8 +352,8 @@ begin
           else
           begin
             Log('Failed to execute model script');
-            MsgBox('Could not run model setup script.'#13#10 +
-                   'You can download models later by running:'#13#10 +
+            MsgBox('Impossibile eseguire lo script di configurazione modelli.'#13#10 +
+                   'Puoi scaricare i modelli successivamente eseguendo:'#13#10 +
                    'ollama pull deepseek-r1:1.5b',
                    mbInformation, MB_OK);
           end;
@@ -370,19 +370,19 @@ function InitializeUninstall(): Boolean;
 var
   Response: Integer;
 begin
-  Response := MsgBox('Do you want to remove all Whisper Dictation data, including downloaded models and logs?'#13#10#13#10 +
-                     'Click Yes to remove everything, or No to keep your data.',
+  Response := MsgBox('Vuoi rimuovere tutti i dati di Whisper Dettatura, inclusi modelli scaricati e log?'#13#10#13#10 +
+                     'Clicca Sì per rimuovere tutto, o No per mantenere i tuoi dati.',
                      mbConfirmation, MB_YESNO);
 
   if Response = IDYES then
   begin
     // Note: Model files are stored in user's cache directory
     // You can add custom cleanup code here if needed
-    MsgBox('Application data will be removed during uninstall.', mbInformation, MB_OK);
+    MsgBox('I dati dell''applicazione saranno rimossi durante la disinstallazione.', mbInformation, MB_OK);
   end
   else
   begin
-    MsgBox('Application will be removed but your data will be preserved.', mbInformation, MB_OK);
+    MsgBox('L''applicazione sarà rimossa ma i tuoi dati saranno preservati.', mbInformation, MB_OK);
   end;
 
   Result := True;
@@ -399,7 +399,7 @@ begin
 
     if DirExists(LogDir) then
     begin
-      if MsgBox('Remove logs from: ' + LogDir + '?', mbConfirmation, MB_YESNO) = IDYES then
+      if MsgBox('Rimuovere i log da: ' + LogDir + '?', mbConfirmation, MB_YESNO) = IDYES then
       begin
         DelTree(LogDir, True, True, True);
       end;
@@ -407,9 +407,9 @@ begin
 
     // Note: Hugging Face model cache is at %USERPROFILE%\.cache\huggingface
     // We don't auto-delete this as other apps may use it
-    MsgBox('Uninstall complete!'#13#10#13#10 +
-           'Note: Downloaded AI models in %USERPROFILE%\.cache\huggingface were not removed.'#13#10 +
-           'You can manually delete this folder if needed to free up space (~150MB).',
+    MsgBox('Disinstallazione completata!'#13#10#13#10 +
+           'Nota: I modelli AI scaricati in %USERPROFILE%\.cache\huggingface non sono stati rimossi.'#13#10 +
+           'Puoi eliminare manualmente questa cartella se necessario per liberare spazio (~150MB).',
            mbInformation, MB_OK);
   end;
 end;

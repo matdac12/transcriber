@@ -91,6 +91,7 @@ def build_file_transcriber():
         '--onedir',  # Directory mode for faster startup
         '--windowed',  # No console window (clean for end users)
         '--icon=WhisperAppLogo.ico',  # Custom app icon
+        '--additional-hooks-dir=.',  # Use custom PyInstaller hooks (hook-av.py)
         '--hidden-import=faster_whisper',
         '--hidden-import=ctranslate2',
         '--hidden-import=tkinter',

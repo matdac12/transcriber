@@ -103,7 +103,8 @@ def build_file_transcriber():
         # Collect only essential data files for VAD (Voice Activity Detection)
         '--collect-data=faster_whisper',
         '--collect-all=soundfile',  # Keep for audio file support
-        '--collect-all=av',  # Keep for M4A/MP3 support
+        '--collect-all=av',  # Keep for M4A/MP3 support - includes FFmpeg libraries
+        '--collect-binaries=av',  # Ensure all PyAV DLLs are included
         '--collect-all=ttkbootstrap',  # Keep for UI themes
         # Exclude Qt packages (uses tkinter/ttkbootstrap instead)
         '--exclude-module=PyQt5',

@@ -343,19 +343,15 @@ begin
             else
             begin
               Log('Ollama model configuration failed with code: ' + IntToStr(ResultCode));
-              MsgBox('Ollama è installato ma la configurazione dei modelli è fallita.'#13#10 +
-                     'Puoi scaricare i modelli successivamente eseguendo:'#13#10 +
-                     'ollama pull deepseek-r1:1.5b',
-                     mbInformation, MB_OK);
+              // Don't show error - models will download on first use
+              Log('Models will be downloaded automatically on first use');
             end;
           end
           else
           begin
             Log('Failed to execute model script');
-            MsgBox('Impossibile eseguire lo script di configurazione modelli.'#13#10 +
-                   'Puoi scaricare i modelli successivamente eseguendo:'#13#10 +
-                   'ollama pull deepseek-r1:1.5b',
-                   mbInformation, MB_OK);
+            // Don't show error - models will download on first use
+            Log('Models will be downloaded automatically on first use');
           end;
         end;
       end;

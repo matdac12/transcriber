@@ -1,5 +1,9 @@
 # Whisper Dictation & File Transcriber
 
+[![Download Latest Release](https://img.shields.io/github/v/release/matdac12/transcriber?label=Download&style=for-the-badge&logo=windows&logoColor=white)](https://github.com/matdac12/transcriber/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/matdac12/transcriber/total?style=for-the-badge&logo=github)](https://github.com/matdac12/transcriber/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
+
 A comprehensive Windows application suite featuring real-time speech-to-text dictation and audio file transcription using OpenAI's Whisper model. **Works completely offline** with no internet required.
 
 Perfect for:
@@ -47,16 +51,31 @@ Perfect for:
 
 ## Installation
 
-### Option 1: Windows Installer (Recommended for End Users)
+### ⚡ Quick Install (Recommended)
 
-**Coming Soon!** A single-click installer will be available that includes:
-- Both dictation and file transcription apps
-- All dependencies pre-configured
-- Start Menu shortcuts
-- Optional auto-start on Windows login
-- No external tools required
+**[📥 Download WhisperDictation_Setup.exe](https://github.com/matdac12/transcriber/releases/latest)**
 
-To build the installer yourself, see [Building the Windows Installer](#building-the-windows-installer) below.
+The installer includes:
+- ✅ Both dictation and file transcription apps
+- ✅ All dependencies pre-configured
+- ✅ Start Menu shortcuts
+- ✅ Optional desktop shortcuts
+- ✅ Optional auto-start on Windows login
+- ✅ Optional Ollama AI integration for summaries
+- ✅ No external tools required
+
+**Installation steps:**
+1. Download the latest `WhisperDictation_Setup.exe` from the [Releases page](https://github.com/matdac12/transcriber/releases/latest)
+2. Run the installer (requires administrator privileges)
+3. Follow the setup wizard
+4. Launch "Whisper Dettatura" from Start Menu or desktop
+5. AI models (~150MB) download automatically on first use
+
+**System Requirements:**
+- Windows 10/11 (64-bit)
+- ~1GB available disk space (plus ~150MB for models)
+- Microphone for dictation
+- Internet connection for first-time model download
 
 ### Option 2: Development Setup
 

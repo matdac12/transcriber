@@ -37,7 +37,7 @@ def build_systray_app():
         '--name=WhisperDictation',
         '--onedir',  # Directory mode for faster startup
         '--windowed',  # No console window
-        '--icon=NONE',  # Add your own icon file here if available
+        '--icon=WhisperAppLogo.ico',  # Custom app icon
         '--add-data=run_systray.vbs;.',  # Include the VBS launcher
         '--hidden-import=faster_whisper',
         '--hidden-import=ctranslate2',
@@ -90,7 +90,7 @@ def build_file_transcriber():
         '--name=FileTranscriber',
         '--onedir',  # Directory mode for faster startup
         '--windowed',  # No console window (clean for end users)
-        '--icon=NONE',  # Add your own icon file here if available
+        '--icon=WhisperAppLogo.ico',  # Custom app icon
         '--hidden-import=faster_whisper',
         '--hidden-import=ctranslate2',
         '--hidden-import=tkinter',
